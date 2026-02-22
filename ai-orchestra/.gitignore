@@ -1,0 +1,37 @@
+# Dependency directories (Asla yüklenmemeli, boyutu çok büyüktür)
+node_modules/
+
+# Environment variables (KRİTİK GÜVENLİK: Şifrelerin olduğu dosya)
+.env
+.env.local
+.env.development
+.env.production
+
+# Generated Output Files (Sistemin ürettiği raporlar repoda kalabalık yapmasın)
+output/
+*.md
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS specific files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE / Editor folders (Geliştirici ortam dosyaları)
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
