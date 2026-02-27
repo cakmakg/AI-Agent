@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Mail, Loader2, AlertTriangle, Flame, ShieldAlert, CheckCircle } from 'lucide-react';
 import { simulateInbox } from '../services/api';

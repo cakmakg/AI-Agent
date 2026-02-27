@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Play, Loader2, CheckCircle2, Cpu } from 'lucide-react';
 import { analyzeTask } from '../services/api';
