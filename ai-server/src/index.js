@@ -7,7 +7,7 @@ import { StateAnnotation } from "./state/graphState.js";
 // Ajanları İçeri Aktarıyoruz
 import { orchestratorNode } from "./agents/orchestrator.js";
 import { scraperNode } from "./agents/scraperAgent.js";
-import { analyzerNode } from "./agents/analyzerAgent.js"; 
+import { analyzerNode } from "./agents/analyzerAgent.js";
 import { writerNode } from "./agents/writerAgent.js";
 import { criticNode } from "./agents/criticAgent.js"; // 🎯 YENİ: Eleştirmen Ajan Eklendi
 import { fileNode } from "./agents/fileAgent.js";
@@ -20,16 +20,16 @@ import mongoose from "mongoose"; // YENİ: Veritabanı
 // 1. Grafiği Başlat ve Düğümleri Ekle
 const workflow = new StateGraph(StateAnnotation);
 
-workflow.addNode("orchestrator", orchestratorNode); 
-workflow.addNode("scraper", scraperNode);           
-workflow.addNode("analyzer", analyzerNode);         
+workflow.addNode("orchestrator", orchestratorNode);
+workflow.addNode("scraper", scraperNode);
+workflow.addNode("analyzer", analyzerNode);
 workflow.addNode("writer", writerNode);
 workflow.addNode("critic", criticNode);             // 🎯 YENİ: Eleştirmen Düğümü Eklendi
 workflow.addNode("fileSaver", fileNode);
 workflow.addNode("publisher", publisherNode);
 
 // 2. İletişim Yolları
-workflow.addEdge(START, "orchestrator"); 
+workflow.addEdge(START, "orchestrator");
 workflow.addEdge("scraper", "orchestrator");
 workflow.addEdge("analyzer", "orchestrator");
 workflow.addEdge("writer", "orchestrator");
@@ -39,7 +39,7 @@ workflow.addEdge("publisher", "orchestrator");
 
 workflow.addConditionalEdges("orchestrator", (state) => {
     if (state.nextAgent === "END") return END;
-    return state.nextAgent; 
+    return state.nextAgent;
 });
 
 // Sistemi Derle
@@ -55,7 +55,7 @@ server.use(cors());
 server.use(express.json());
 
 // 🟢 MONGODB BAĞLANTISI
-mongoose.connect(process.env.MONGO_URI)
+mongoose.connect(process.env.MONGODB)
     .then(() => console.log("📦 MongoDB Atlas Bağlantısı Başarılı!"))
     .catch(err => console.error("❌ MongoDB Hatası:", err));
 
@@ -75,10 +75,10 @@ server.post("/api/analyze", async (req, res) => {
     try {
         const userTask = req.body.task;
         if (!userTask) return res.status(400).json({ error: "Lütfen bir 'task' belirtin." });
-        
+
         const initialState = { task: userTask };
         const finalState = await app.invoke(initialState);
-        
+
         res.json({
             success: true,
             fileSaved: finalState.fileSaved,
@@ -98,7 +98,7 @@ server.post("/api/inbox", async (req, res) => {
         }
 
         console.log(`\n📧 YENİ MESAJ GELDİ (Gelen Kutusu Webhook'u Tetiklendi)`);
-        
+
         // 1. Aşama: Müşteri Botu (Ajan 6) mesajı okur ve niyetini anlar
         const leadAnalysis = await processIncomingMessage(customerMessage);
 
@@ -115,14 +115,14 @@ server.post("/api/inbox", async (req, res) => {
 
         // 2. Aşama: Eğer mesaj HOT LEAD (Sıcak Satış) ise Şefi Uyandır!
         console.log("\n🚀 SICAK MÜŞTERİ ONAYLANDI! ORKESTRA ŞEFİ UYANDIRILIYOR...");
-        
+
         // Ajan 6'nın Şef için hazırladığı Almanca emri hafızaya veriyoruz
-        const initialState = { 
-            task: leadAnalysis.orchestratorTask 
+        const initialState = {
+            task: leadAnalysis.orchestratorTask
         };
-        
+
         const finalState = await app.invoke(initialState);
-        
+
         console.log("\n✅ İŞLEM BİTTİ. DÖNGÜ TAMAMLANDI.");
 
         res.json({
