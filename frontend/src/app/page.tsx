@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { BackgroundGrid } from "@/components/layout/background-grid";
 import { TerminalLogs } from "@/components/hud/terminal-logs";
 import { ConstellationGraph } from "@/components/network/constellation-graph";
@@ -8,9 +9,10 @@ import { SignalInbox } from "@/components/radar/signal-inbox";
 import { GlassModal } from "@/components/ui/glass-modal";
 import { MissionInput } from "@/components/hud/mission-input";
 import { CronTimer } from "@/components/hud/cron-timer";
+import { ArtifactsPanel } from "@/components/hud/artifacts-panel";
 import { SystemAlerts } from "@/components/ui/system-alert";
 import { useAgentStore } from "@/store/agent-store";
-import { Activity, Wifi, Cpu, Shield } from "lucide-react";
+import { Activity, Wifi, Cpu, Shield, AlertTriangle } from "lucide-react";
 
 function SystemClock() {
   const [time, setTime] = useState("");
@@ -38,19 +40,57 @@ function WorkflowBadge() {
 
   return (
     <span className={`text-[8px] font-mono font-bold px-2 py-0.5 rounded border tracking-wider ${colors[phase] || ""}`}>
-      {phase.replace("_", " ")}
+      {phase.replace(/_/g, " ")}
     </span>
+  );
+}
+
+// ── Prominent HITL Awaiting Alarm ──
+function HitlAwaitingAlarm({ onOpen }: { onOpen: () => void }) {
+  const workflowPhase = useAgentStore((s) => s.workflowPhase);
+  const isAwaiting = workflowPhase === "AWAITING_APPROVAL";
+
+  return (
+    <AnimatePresence>
+      {isAwaiting && (
+        <motion.button
+          initial={{ opacity: 0, scale: 0.9, y: -10 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.9, y: -10 }}
+          onClick={onOpen}
+          className="flex items-center gap-2.5 px-4 py-2 rounded border border-cyber-amber/60 bg-cyber-amber/10 cursor-pointer
+            shadow-[0_0_20px_rgba(255,176,0,0.3),inset_0_0_12px_rgba(255,176,0,0.05)]
+            hover:bg-cyber-amber/20 hover:shadow-[0_0_30px_rgba(255,176,0,0.4)] transition-all"
+          id="hitl-alarm-btn"
+          aria-label="Open HITL authorization panel"
+        >
+          <AlertTriangle size={14} className="text-cyber-amber animate-pulse" />
+          <div className="text-left">
+            <div className="text-[9px] font-mono font-bold tracking-[0.2em] uppercase" style={{ color: "#ffb000", textShadow: "0 0 8px rgba(255,176,0,0.7)" }}>
+              AWAITING AUTHORIZATION
+            </div>
+            <div className="text-[7px] font-mono text-cyber-amber/60 tracking-wider">Click to review &amp; authorize</div>
+          </div>
+          <motion.div
+            animate={{ opacity: [0.3, 1, 0.3] }}
+            transition={{ repeat: Infinity, duration: 1.5 }}
+            className="w-2 h-2 rounded-full bg-cyber-amber shadow-[0_0_8px_rgba(255,176,0,0.8)]"
+          />
+        </motion.button>
+      )}
+    </AnimatePresence>
   );
 }
 
 export default function Home() {
   const [reviewOpen, setReviewOpen] = useState(false);
   const workflowPhase = useAgentStore((s) => s.workflowPhase);
+  const ctoStatus = useAgentStore((s) => s.agents.cto.status);
+  const isCtoActive = ctoStatus === "ACTIVE" || ctoStatus === "THINKING";
 
   // Auto-open review modal when approval needed
   useEffect(() => {
     if (workflowPhase === "AWAITING_APPROVAL") {
-      // Slight delay for visual effect
       const timer = setTimeout(() => setReviewOpen(true), 800);
       return () => clearTimeout(timer);
     }
@@ -75,27 +115,16 @@ export default function Home() {
           <WorkflowBadge />
         </div>
 
+        {/* Center: HITL Alarm */}
+        <HitlAwaitingAlarm onOpen={() => setReviewOpen(true)} />
+
         <div className="flex items-center gap-5 text-[9px] font-mono text-white/30">
-          <div className="flex items-center gap-1.5">
-            <Activity size={10} className="text-neon-green" />
-            <span>9 AGENTS</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <Wifi size={10} className="text-neon-blue" />
-            <span>ONLINE</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <Cpu size={10} className="text-cyber-amber" />
-            <span>LANGGRAPH</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <Shield size={10} className="text-neon-green" />
-            <span>HITL ARMED</span>
-          </div>
+          <div className="flex items-center gap-1.5"><Activity size={10} className="text-neon-green" /><span>9 AGENTS</span></div>
+          <div className="flex items-center gap-1.5"><Wifi size={10} className="text-neon-blue" /><span>ONLINE</span></div>
+          <div className="flex items-center gap-1.5"><Cpu size={10} className="text-cyber-amber" /><span>LANGGRAPH</span></div>
+          <div className="flex items-center gap-1.5"><Shield size={10} className="text-neon-green" /><span>HITL ARMED</span></div>
           <span className="text-white/20">|</span>
-          <span className="text-neon-blue font-bold tracking-wider">
-            <SystemClock />
-          </span>
+          <span className="text-neon-blue font-bold tracking-wider"><SystemClock /></span>
         </div>
       </header>
 
@@ -114,9 +143,33 @@ export default function Home() {
           <ConstellationGraph />
         </section>
 
-        {/* RIGHT PANEL: Signal Inbox / HITL */}
+        {/* RIGHT PANEL: Swaps between ArtifactsPanel (CTO active) and SignalInbox */}
         <section className="w-[300px] shrink-0">
-          <SignalInbox onOpenReview={() => setReviewOpen(true)} />
+          <AnimatePresence mode="wait">
+            {isCtoActive ? (
+              <motion.div
+                key="artifacts"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 20 }}
+                transition={{ duration: 0.3 }}
+                className="w-full h-full"
+              >
+                <ArtifactsPanel />
+              </motion.div>
+            ) : (
+              <motion.div
+                key="signal"
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                transition={{ duration: 0.3 }}
+                className="w-full h-full"
+              >
+                <SignalInbox onOpenReview={() => setReviewOpen(true)} />
+              </motion.div>
+            )}
+          </AnimatePresence>
         </section>
       </main>
 
