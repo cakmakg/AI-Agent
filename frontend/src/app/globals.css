@@ -1,0 +1,93 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-background: #000000;
+  --color-foreground: #ededed;
+
+  --color-neon-blue: #00f0ff;
+  --color-neon-green: #39ff14;
+  --color-cyber-amber: #ffb000;
+
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+:root {
+  --background: #000000;
+  --foreground: #ededed;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  overflow: hidden;
+  /* Tam ekran Dashboard hissi için */
+  margin: 0;
+  padding: 0;
+  width: 100vw;
+  height: 100vh;
+}
+
+/* Custom Glassmorphism Utility */
+@utility glass-panel {
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+}
+
+/* Custom Neon Utilities */
+@utility neon-text-blue {
+  color: var(--color-neon-blue);
+  text-shadow: 0 0 5px rgba(0, 240, 255, 0.8), 0 0 10px rgba(0, 240, 255, 0.5);
+}
+
+@utility neon-text-green {
+  color: var(--color-neon-green);
+  text-shadow: 0 0 5px rgba(57, 255, 20, 0.8), 0 0 10px rgba(57, 255, 20, 0.5);
+}
+
+@utility neon-text-amber {
+  color: var(--color-cyber-amber);
+  text-shadow: 0 0 5px rgba(255, 176, 0, 0.8), 0 0 10px rgba(255, 176, 0, 0.5);
+}
+
+@utility text-shadow-red {
+  text-shadow: 0 0 5px rgba(239, 68, 68, 0.8), 0 0 10px rgba(239, 68, 68, 0.5);
+}
+
+/* Scrollbar Hide */
+@utility scrollbar-hide {
+  -ms-overflow-style: none;
+  /* IE and Edge */
+  scrollbar-width: none;
+
+  /* Firefox */
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Animations */
+@keyframes scanline {
+  0% {
+    transform: translateY(-10px);
+    opacity: 0;
+  }
+
+  50% {
+    opacity: 1;
+    box-shadow: 0 0 10px var(--color-neon-blue);
+  }
+
+  100% {
+    transform: translateY(800px);
+    opacity: 0;
+  }
+}
+
+@utility animate-scanline {
+  animation: scanline 8s linear infinite;
+}
