@@ -2,11 +2,12 @@
 
 @theme inline {
   --color-background: #000000;
-  --color-foreground: #ededed;
+  --color-foreground: #e0e0e0;
 
   --color-neon-blue: #00f0ff;
   --color-neon-green: #39ff14;
   --color-cyber-amber: #ffb000;
+  --color-alert-red: #ff2d55;
 
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
@@ -14,80 +15,219 @@
 
 :root {
   --background: #000000;
-  --foreground: #ededed;
+  --foreground: #e0e0e0;
+}
+
+* {
+  box-sizing: border-box;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  font-family: var(--font-mono), "Courier New", monospace;
   overflow: hidden;
-  /* Tam ekran Dashboard hissi için */
   margin: 0;
   padding: 0;
   width: 100vw;
   height: 100vh;
 }
 
-/* Custom Glassmorphism Utility */
+/* ── Glass Panels ── */
 @utility glass-panel {
-  background: rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+  background: rgba(5, 10, 15, 0.65);
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
+  border: 1px solid rgba(0, 240, 255, 0.08);
+  box-shadow:
+    0 0 1px rgba(0, 240, 255, 0.2),
+    inset 0 0 30px rgba(0, 0, 0, 0.4);
 }
 
-/* Custom Neon Utilities */
+/* ── Neon Text Utilities ── */
 @utility neon-text-blue {
   color: var(--color-neon-blue);
-  text-shadow: 0 0 5px rgba(0, 240, 255, 0.8), 0 0 10px rgba(0, 240, 255, 0.5);
+  text-shadow:
+    0 0 4px rgba(0, 240, 255, 0.9),
+    0 0 11px rgba(0, 240, 255, 0.4),
+    0 0 20px rgba(0, 240, 255, 0.15);
 }
 
 @utility neon-text-green {
   color: var(--color-neon-green);
-  text-shadow: 0 0 5px rgba(57, 255, 20, 0.8), 0 0 10px rgba(57, 255, 20, 0.5);
+  text-shadow:
+    0 0 4px rgba(57, 255, 20, 0.9),
+    0 0 11px rgba(57, 255, 20, 0.4),
+    0 0 20px rgba(57, 255, 20, 0.15);
 }
 
 @utility neon-text-amber {
   color: var(--color-cyber-amber);
-  text-shadow: 0 0 5px rgba(255, 176, 0, 0.8), 0 0 10px rgba(255, 176, 0, 0.5);
+  text-shadow:
+    0 0 4px rgba(255, 176, 0, 0.9),
+    0 0 11px rgba(255, 176, 0, 0.4),
+    0 0 20px rgba(255, 176, 0, 0.15);
 }
 
-@utility text-shadow-red {
-  text-shadow: 0 0 5px rgba(239, 68, 68, 0.8), 0 0 10px rgba(239, 68, 68, 0.5);
+@utility neon-text-red {
+  color: var(--color-alert-red);
+  text-shadow:
+    0 0 4px rgba(255, 45, 85, 0.9),
+    0 0 11px rgba(255, 45, 85, 0.4),
+    0 0 20px rgba(255, 45, 85, 0.15);
 }
 
-/* Scrollbar Hide */
+/* ── Neon Border Glow ── */
+@utility neon-border-blue {
+  border-color: rgba(0, 240, 255, 0.25);
+  box-shadow:
+    0 0 6px rgba(0, 240, 255, 0.15),
+    inset 0 0 6px rgba(0, 240, 255, 0.05);
+}
+
+@utility neon-border-green {
+  border-color: rgba(57, 255, 20, 0.25);
+  box-shadow:
+    0 0 6px rgba(57, 255, 20, 0.15),
+    inset 0 0 6px rgba(57, 255, 20, 0.05);
+}
+
+@utility neon-border-amber {
+  border-color: rgba(255, 176, 0, 0.25);
+  box-shadow:
+    0 0 6px rgba(255, 176, 0, 0.15),
+    inset 0 0 6px rgba(255, 176, 0, 0.05);
+}
+
+/* ── Scrollbar ── */
 @utility scrollbar-hide {
   -ms-overflow-style: none;
-  /* IE and Edge */
   scrollbar-width: none;
 
-  /* Firefox */
   &::-webkit-scrollbar {
     display: none;
   }
 }
 
-/* Animations */
+/* ── Keyframe Animations ── */
 @keyframes scanline {
   0% {
-    transform: translateY(-10px);
-    opacity: 0;
+    transform: translateY(-100%);
+  }
+
+  100% {
+    transform: translateY(100vh);
+  }
+}
+
+@keyframes radar-sweep {
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes data-pulse {
+
+  0%,
+  100% {
+    opacity: 0.3;
   }
 
   50% {
     opacity: 1;
-    box-shadow: 0 0 10px var(--color-neon-blue);
+  }
+}
+
+@keyframes flicker {
+
+  0%,
+  100% {
+    opacity: 1;
   }
 
+  92% {
+    opacity: 1;
+  }
+
+  93% {
+    opacity: 0.7;
+  }
+
+  94% {
+    opacity: 1;
+  }
+
+  96% {
+    opacity: 0.85;
+  }
+
+  97% {
+    opacity: 1;
+  }
+}
+
+@keyframes typing-cursor {
+
+  0%,
   100% {
-    transform: translateY(800px);
+    opacity: 1;
+  }
+
+  50% {
     opacity: 0;
   }
 }
 
+@keyframes hex-rotate {
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes float-y {
+
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
 @utility animate-scanline {
-  animation: scanline 8s linear infinite;
+  animation: scanline 6s linear infinite;
+}
+
+@utility animate-radar-sweep {
+  animation: radar-sweep 4s linear infinite;
+}
+
+@utility animate-data-pulse {
+  animation: data-pulse 2s ease-in-out infinite;
+}
+
+@utility animate-flicker {
+  animation: flicker 4s ease-in-out infinite;
+}
+
+@utility animate-typing-cursor {
+  animation: typing-cursor 1s step-end infinite;
+}
+
+@utility animate-hex-rotate {
+  animation: hex-rotate 20s linear infinite;
+}
+
+@utility animate-float-y {
+  animation: float-y 3s ease-in-out infinite;
 }
