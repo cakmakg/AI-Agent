@@ -1,6 +1,0 @@
-{
-  "dependencies": {
-    "helmet": "^8.1.0",
-    "mongoose": "^9.2.3"
-  }
-}
