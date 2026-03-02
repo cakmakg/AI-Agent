@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ShieldCheck, ShieldX, X, AlertTriangle, Lock, FileText, MessageSquare } from "lucide-react";
 import { useAgentStore } from "@/store/agent-store";
@@ -28,7 +28,7 @@ interface Props {
 }
 
 export const GlassModal = ({ isOpen, onClose }: Props) => {
-    const { pendingContent, missionMessage, approveMission, rejectMission, workflowPhase } = useAgentStore();
+    const { pendingContent, missionMessage, approveMission, rejectMission } = useAgentStore();
     const [judgeNote, setJudgeNote] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -182,8 +182,8 @@ export const GlassModal = ({ isOpen, onClose }: Props) => {
                                     onClick={handleApprove}
                                     disabled={isSubmitting}
                                     className="px-5 py-2.5 rounded font-mono text-[10px] font-bold uppercase tracking-[0.15em]
-                    bg-cyber-amber/15 border border-cyber-amber/50 text-cyber-amber
-                    hover:bg-cyber-amber/25 hover:border-cyber-amber/70 hover:shadow-[0_0_25px_rgba(255,176,0,0.2)]
+                    bg-neon-green/10 border border-neon-green/40 text-neon-green
+                    hover:bg-neon-green/20 hover:border-neon-green/60 hover:shadow-[0_0_25px_rgba(57,255,20,0.2)]
                     disabled:opacity-30 disabled:cursor-not-allowed
                     transition-all duration-200 flex items-center gap-2"
                                     id="authorize-btn"

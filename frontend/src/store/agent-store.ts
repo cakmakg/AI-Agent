@@ -173,32 +173,119 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
 
             const data = await res.json();
 
-            if (data.success && data.status === "AWAITING_HUMAN_APPROVAL") {
-                // Workflow complete, awaiting HITL approval
+            // SPAM / OTHER
+            if (data.status === "IGNORED") {
+                setAgentStatus("ceo", "SUCCESS");
+                setWorkflowPhase("IDLE");
+                setActiveAgent(null);
+                addLog({ timestamp: getTimestamp(), agent: "SYSTEM", message: "Message filtered: SPAM/OTHER", level: "WARN" });
+                addAlert({ message: "MESSAGE FILTERED: SPAM/OTHER", type: "warning" });
+                return;
+            }
+
+            // DESTEK TALEBİ — anlık dönüş, SSE yok
+            if (data.status === "AWAITING_HUMAN_APPROVAL_SUPPORT") {
                 set({
                     threadId: data.threadId,
                     pendingContent: data.pendingContent || "No content available.",
                     workflowPhase: "AWAITING_APPROVAL",
                 });
-
                 setAgentStatus("ceo", "SUCCESS");
-                setActiveAgent("hitl");
                 setAgentStatus("hitl", "ACTIVE");
-
-                addLog({ timestamp: getTimestamp(), agent: "SYSTEM", message: "Workflow complete. Awaiting HITL authorization.", level: "WARN" });
-                addAlert({ message: "MISSION COMPLETE — AWAITING YOUR AUTHORIZATION", type: "warning" });
-
-            } else if (data.success) {
-                // Non-approval flow (e.g. INFO classification)
-                setAgentStatus("ceo", "SUCCESS");
-                setActiveAgent(null);
-                setWorkflowPhase("IDLE");
-                addLog({ timestamp: getTimestamp(), agent: "SYSTEM", message: `Task classified: ${data.category || "COMPLETED"}`, level: "SUCCESS" });
-                addAlert({ message: "TASK PROCESSED SUCCESSFULLY", type: "success" });
-
-            } else {
-                throw new Error(data.error || "Unknown backend error");
+                setActiveAgent("hitl");
+                addLog({ timestamp: getTimestamp(), agent: "SYSTEM", message: "Support request — HITL gate armed.", level: "WARN" });
+                addAlert({ message: "SUPPORT REQUEST — AWAITING AUTHORIZATION", type: "warning" });
+                return;
             }
+
+            // HOT_LEAD — SSE ile gerçek zamanlı ajan takibi
+            if (data.status === "PROCESSING" && data.threadId) {
+                set({ threadId: data.threadId });
+                addLog({ timestamp: getTimestamp(), agent: "CEO", message: "Workflow started. Tracking agents via SSE...", level: "INFO" });
+
+                let previousAgent: AgentId | null = "ceo";
+                const eventSource = new EventSource(`/api/events/${data.threadId}`);
+
+                const agentLabels: Record<string, string> = {
+                    ceo: "Orchestrator routing...",
+                    scraper: "Connecting to Global Network... Fetching data...",
+                    analyst: "Processing data blocks...",
+                    writer: "Composing B2B content...",
+                    qa: "Scanning output for errors...",
+                    cto: "Generating architecture blueprint...",
+                    hitl: "HITL gate armed. Awaiting authorization.",
+                    publisher: "Initiating payload delivery...",
+                    radar: "R&D scan in progress...",
+                };
+
+                eventSource.onmessage = (e: MessageEvent) => {
+                    const event = JSON.parse(e.data) as {
+                        type: string;
+                        agent?: string;
+                        status?: string;
+                        pendingContent?: string;
+                        message?: string;
+                    };
+
+                    if (event.type === "agent_active" && event.agent) {
+                        const agentId = event.agent as AgentId;
+                        // Orchestrator (CEO) çok sık dönüyor; ara ajan bitince SUCCESS'e al
+                        if (previousAgent && previousAgent !== agentId && previousAgent !== "ceo") {
+                            get().setAgentStatus(previousAgent, "SUCCESS");
+                        }
+                        get().setAgentStatus(agentId, "ACTIVE");
+                        get().setActiveAgent(agentId);
+                        addLog({
+                            timestamp: getTimestamp(),
+                            agent: agentId.toUpperCase(),
+                            message: agentLabels[agentId] ?? "Agent activated",
+                            level: "INFO",
+                        });
+                        previousAgent = agentId;
+                    }
+
+                    if (event.type === "workflow_complete") {
+                        eventSource.close();
+                        if (event.status === "AWAITING_HUMAN_APPROVAL") {
+                            if (previousAgent && previousAgent !== "ceo") {
+                                get().setAgentStatus(previousAgent, "SUCCESS");
+                            }
+                            set({
+                                pendingContent: event.pendingContent || "No content available.",
+                                workflowPhase: "AWAITING_APPROVAL",
+                            });
+                            get().setAgentStatus("hitl", "ACTIVE");
+                            get().setActiveAgent("hitl");
+                            addLog({ timestamp: getTimestamp(), agent: "SYSTEM", message: "Workflow complete. Awaiting HITL authorization.", level: "WARN" });
+                            addAlert({ message: "MISSION COMPLETE — AWAITING YOUR AUTHORIZATION", type: "warning" });
+                        }
+                    }
+
+                    if (event.type === "error") {
+                        eventSource.close();
+                        const failedAgent = (previousAgent ?? "ceo") as AgentId;
+                        get().setAgentStatus(failedAgent, "ERROR");
+                        get().setWorkflowPhase("IDLE");
+                        get().setActiveAgent(null);
+                        addLog({ timestamp: getTimestamp(), agent: "SYSTEM", message: `ERROR: ${event.message}`, level: "ERROR" });
+                        addAlert({ message: `MISSION FAILED: ${event.message}`, type: "error" });
+                    }
+                };
+
+                eventSource.onerror = () => {
+                    eventSource.close();
+                    get().setWorkflowPhase("IDLE");
+                    get().setActiveAgent(null);
+                    addLog({ timestamp: getTimestamp(), agent: "SYSTEM", message: "SSE connection lost.", level: "ERROR" });
+                    addAlert({ message: "SSE CONNECTION LOST — Check backend", type: "error" });
+                };
+
+                return; // EventSource geri kalanı halleder
+            }
+
+            // Beklenmeyen yanıt
+            throw new Error(data.error || "Unexpected backend response");
+
         } catch (error) {
             setAgentStatus("ceo", "ERROR");
             setWorkflowPhase("IDLE");

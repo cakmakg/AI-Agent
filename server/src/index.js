@@ -6,8 +6,26 @@ import cors from "cors";
 import helmet from "helmet";
 import mongoose from "mongoose";
 import { v4 as uuidv4 } from "uuid";
+import { EventEmitter } from "events";
 import { StateGraph, START, END, MemorySaver } from "@langchain/langgraph";
 import { StateAnnotation } from "./state/graphState.js";
+
+// 📡 SSE Event Bus — her threadId için agent geçişlerini yayar
+const agentEventBus = new EventEmitter();
+agentEventBus.setMaxListeners(50);
+
+// Backend node adı → Frontend agent ID eşlemesi
+const AGENT_UI_MAP = {
+    orchestrator: "ceo",
+    scraper: "scraper",
+    analyzer: "analyst",
+    writer: "writer",
+    critic: "qa",
+    fileSaver: null,           // UI'da karşılığı yok
+    human_approval: "hitl",
+    publisher: "publisher",
+    architect: "cto",
+};
 
 // Ajanları İçeri Aktarıyoruz
 import { orchestratorNode } from "./agents/orchestrator.js";
@@ -23,8 +41,34 @@ import { architectNode } from "./agents/architectAgent.js";
 // 🎯 Yargıç Gölge Düğümü
 const humanNode = (state) => {
     console.log("👨‍⚖️ Yargıç kararı bekleniyor... Sistem uykuya geçiyor.");
-    return {}; 
+    return {};
 };
+
+// 🔄 HOT_LEAD workflow'unu arka planda çalıştır ve SSE ile olayları yay
+async function runHotLeadWorkflow(threadId, task) {
+    const config = { configurable: { thread_id: threadId }, recursionLimit: 100 };
+    try {
+        for await (const chunk of await app.stream({ task }, config)) {
+            const nodeName = Object.keys(chunk)[0];
+            const agentId = AGENT_UI_MAP[nodeName];
+            console.log(`   📡 SSE → node: ${nodeName}, agentId: ${agentId ?? "none"}`);
+            if (agentId) {
+                agentEventBus.emit(threadId, { type: "agent_active", agent: agentId });
+            }
+        }
+        const currentState = await app.getState(config);
+        if (currentState.next.includes("human_approval")) {
+            agentEventBus.emit(threadId, {
+                type: "workflow_complete",
+                status: "AWAITING_HUMAN_APPROVAL",
+                pendingContent: currentState.values.finalContent || "",
+            });
+        }
+    } catch (err) {
+        console.error("❌ runHotLeadWorkflow hatası:", err.message);
+        agentEventBus.emit(threadId, { type: "error", message: err.message });
+    }
+}
 
 // ---------------------------------------------------------
 // 1. LANGGRAPH İŞ AKIŞI VE HAFIZA KURULUMU
@@ -74,6 +118,29 @@ const PORT = process.env.PORT || 3000;
 // 3. API UÇLARI (ENDPOINTS)
 // ---------------------------------------------------------
 
+// 🚪 KAPI 0: SSE — Agent Durum Akışı
+server.get("/api/events/:threadId", (req, res) => {
+    const { threadId } = req.params;
+    res.writeHead(200, {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache, no-transform",
+        "Connection": "keep-alive",
+        "X-Accel-Buffering": "no",
+    });
+    res.write("\n"); // headers'ı flush et
+
+    const listener = (event) => {
+        res.write(`data: ${JSON.stringify(event)}\n\n`);
+        if (event.type === "workflow_complete" || event.type === "error") {
+            agentEventBus.removeListener(threadId, listener);
+            res.end();
+        }
+    };
+
+    agentEventBus.on(threadId, listener);
+    req.on("close", () => agentEventBus.removeListener(threadId, listener));
+});
+
 // 🚪 KAPI 1: Manuel Görev Verme
 server.post("/api/analyze", async (req, res) => {
     try {
@@ -111,21 +178,13 @@ server.post("/api/inbox", async (req, res) => {
             });
         }
 
-        // 🚀 SICAK SATIŞ DURUMU
+        // 🚀 SICAK SATIŞ DURUMU — workflow arka planda başlar, SSE ile takip edilir
         if (leadAnalysis.category === "HOT_LEAD") {
-            const threadId = uuidv4(); 
-            const config = { configurable: { thread_id: threadId }, recursionLimit: 100 };
-            for await (const chunk of await app.stream({ task: leadAnalysis.orchestratorTask }, config)) {}
-            const currentState = await app.getState(config);
-
-            if (currentState.next.includes("human_approval")) {
-                return res.json({
-                    success: true,
-                    status: "AWAITING_HUMAN_APPROVAL",
-                    threadId, 
-                    pendingContent: currentState.values.finalContent 
-                });
-            }
+            const threadId = uuidv4();
+            // Workflow'u fire-and-forget olarak başlat (await etme)
+            runHotLeadWorkflow(threadId, leadAnalysis.orchestratorTask);
+            // threadId'yi hemen dön; ajanların durumu SSE üzerinden akar
+            return res.json({ success: true, status: "PROCESSING", threadId });
         }
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
