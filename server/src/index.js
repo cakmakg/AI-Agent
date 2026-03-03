@@ -119,6 +119,23 @@ async function runHotLeadWorkflow(threadId, task) {
                     "*(Rapor hazır — 'Pull Latest Intel' butonuna tıklayın)*";
             }
 
+            // ── MongoDB'ye kaydet (fileAgent çağrılmasa bile garantile) ──
+            try {
+                await Report.findOneAndUpdate(
+                    { threadId },
+                    {
+                        threadId,
+                        task: currentState.values?.task || task,
+                        content: pendingContent,
+                        status: "AWAITING_APPROVAL",
+                    },
+                    { upsert: true, new: true }
+                );
+                console.log(`   💾 MongoDB upsert OK — threadId: ${threadId}`);
+            } catch (dbErr) {
+                console.warn("   ⚠️ MongoDB upsert başarısız:", dbErr.message);
+            }
+
             emitToThread(threadId, {
                 type: "workflow_complete",
                 status: "AWAITING_HUMAN_APPROVAL",
