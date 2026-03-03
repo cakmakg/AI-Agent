@@ -50,55 +50,71 @@ function AuthGateWidget({ onOpen }: { onOpen: () => void }) {
   const isAwaiting = workflowPhase === "AWAITING_APPROVAL";
   const isDelivered = workflowPhase === "DELIVERED";
   const isRevising = workflowPhase === "REVISING";
-  const isActive = workflowPhase === "RUNNING" || workflowPhase === "DISPATCHING" || workflowPhase === "PUBLISHING";
+  const isRunning = workflowPhase === "RUNNING" || workflowPhase === "DISPATCHING" || workflowPhase === "PUBLISHING";
 
-  const state = isAwaiting ? "awaiting" : isDelivered ? "delivered" : isRevising ? "revising" : isActive ? "active" : "idle";
-
-  const cfg = {
-    idle: { border: "border-white/8", bg: "bg-black/40", glow: "", dot: "bg-white/20", label: "STANDBY", sub: "No pending requests", labelColor: "text-white/20", icon: null },
-    active: { border: "border-neon-blue/30", bg: "bg-neon-blue/5", glow: "shadow-[0_0_12px_rgba(0,240,255,0.08)]", dot: "bg-neon-blue animate-pulse", label: "PROCESSING", sub: "Agents working...", labelColor: "text-neon-blue", icon: null },
-    awaiting: { border: "border-cyber-amber/50", bg: "bg-cyber-amber/8", glow: "shadow-[0_0_25px_rgba(255,176,0,0.2)]", dot: "bg-cyber-amber animate-pulse", label: "AWAITING AUTH", sub: "Click to review", labelColor: "text-cyber-amber", icon: <AlertTriangle size={11} className="text-cyber-amber" /> },
-    delivered: { border: "border-neon-green/30", bg: "bg-neon-green/5", glow: "shadow-[0_0_12px_rgba(57,255,20,0.08)]", dot: "bg-neon-green", label: "DELIVERED", sub: "Payload transmitted", labelColor: "text-neon-green", icon: null },
-    revising: { border: "border-alert-red/40", bg: "bg-alert-red/8", glow: "shadow-[0_0_12px_rgba(255,45,85,0.1)]", dot: "bg-alert-red animate-pulse", label: "REVISING", sub: "Revision cycle active", labelColor: "text-alert-red", icon: null },
-  }[state];
+  const statusCfg = isAwaiting ? { dotBg: "#ffb000", text: "AWAITING AUTH", textCls: "text-cyber-amber", borderColor: "rgba(255,176,0,0.5)", boxShadow: "0 0 20px rgba(255,176,0,0.25)" }
+    : isDelivered ? { dotBg: "#39ff14", text: "DELIVERED", textCls: "text-neon-green", borderColor: "rgba(57,255,20,0.3)", boxShadow: "0 0 10px rgba(57,255,20,0.1)" }
+      : isRevising ? { dotBg: "#ff2d55", text: "REVISING", textCls: "text-alert-red", borderColor: "rgba(255,45,85,0.3)", boxShadow: "none" }
+        : isRunning ? { dotBg: "#00f0ff", text: "PROCESSING", textCls: "text-neon-blue", borderColor: "rgba(0,240,255,0.3)", boxShadow: "none" }
+          : { dotBg: "rgba(255,255,255,0.3)", text: "STANDBY", textCls: "text-white/50", borderColor: "rgba(255,255,255,0.12)", boxShadow: "none" };
 
   return (
     <motion.div
       layout
       onClick={isAwaiting ? onOpen : undefined}
-      className={`fixed top-[10px] right-4 z-50 flex items-center gap-2.5 px-3 py-2 rounded border
-        backdrop-blur-md transition-all duration-400 select-none
-        ${cfg.border} ${cfg.bg} ${cfg.glow}
-        ${isAwaiting ? "cursor-pointer hover:bg-cyber-amber/15" : "cursor-default"}`}
+      className={`fixed top-[52px] right-4 z-50 flex flex-col gap-1.5 px-3 py-2.5 rounded
+        bg-[#060a0f]/90 backdrop-blur-xl border transition-all duration-300
+        ${isAwaiting ? "cursor-pointer hover:bg-cyber-amber/5" : "cursor-default"}`}
+      style={{
+        minWidth: 160,
+        borderColor: statusCfg.borderColor,
+        boxShadow: statusCfg.boxShadow,
+      }}
       id="auth-gate-widget"
       aria-label="Authorization gate status"
     >
-      {/* Corner bracket decoration */}
-      <div className="absolute top-0 left-0 w-2 h-2 border-t border-l border-current opacity-40" style={{ color: isAwaiting ? "#ffb000" : "rgba(255,255,255,0.15)" }} />
-      <div className="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-current opacity-40" style={{ color: isAwaiting ? "#ffb000" : "rgba(255,255,255,0.15)" }} />
+      {/* Corner brackets — always neon */}
+      <div className="absolute top-0 left-0 w-3 h-3 border-t border-l border-neon-blue/40" />
+      <div className="absolute top-0 right-0 w-3 h-3 border-t border-r border-neon-blue/40" />
+      <div className="absolute bottom-0 left-0 w-3 h-3 border-b border-l border-neon-blue/15" />
+      <div className="absolute bottom-0 right-0 w-3 h-3 border-b border-r border-neon-blue/15" />
 
-      {/* Status dot */}
-      <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${cfg.dot}`} />
-
-      {/* Labels */}
-      <div className="flex flex-col">
-        <div className="flex items-center gap-1.5">
-          {cfg.icon}
-          <span className={`font-mono text-[9px] font-bold tracking-[0.18em] uppercase ${cfg.labelColor}`}
-            style={isAwaiting ? { textShadow: "0 0 8px rgba(255,176,0,0.6)" } : {}}>
-            {cfg.label}
-          </span>
-        </div>
-        <span className="font-mono text-[7px] text-white/25 tracking-wider">{cfg.sub}</span>
+      {/* Title — always visible */}
+      <div className="flex items-center gap-2">
+        <Shield size={10} className="text-neon-blue shrink-0" />
+        <span className="font-mono text-[8px] font-bold tracking-[0.2em] uppercase text-neon-blue/80">
+          Authorization Gate
+        </span>
       </div>
 
-      {/* Pulsing glow ring when awaiting */}
+      {/* Divider */}
+      <div className="h-[1px] bg-gradient-to-r from-neon-blue/20 via-white/10 to-transparent" />
+
+      {/* Status row */}
+      <div className="flex items-center gap-2">
+        <motion.div
+          animate={isAwaiting || isRunning || isRevising ? { opacity: [0.4, 1, 0.4] } : { opacity: 1 }}
+          transition={{ repeat: Infinity, duration: 1.2 }}
+          className={`w-1.5 h-1.5 rounded-full shrink-0`}
+          style={{ backgroundColor: statusCfg.dotBg }}
+        />
+        <span className={`font-mono text-[8px] font-bold tracking-[0.15em] uppercase ${statusCfg.textCls}`}
+          style={isAwaiting ? { textShadow: "0 0 8px rgba(255,176,0,0.6)" } : {}}>
+          {statusCfg.text}
+        </span>
+        {isAwaiting && (
+          <AlertTriangle size={9} className="text-cyber-amber ml-auto animate-pulse" />
+        )}
+      </div>
+
       {isAwaiting && (
         <motion.div
-          animate={{ opacity: [0.25, 0.8, 0.25] }}
-          transition={{ repeat: Infinity, duration: 1.4 }}
-          className="w-1.5 h-1.5 rounded-full bg-cyber-amber shadow-[0_0_8px_rgba(255,176,0,0.9)]"
-        />
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="font-mono text-[7px] text-cyber-amber/60 tracking-wider"
+        >
+          ▸ Click to review
+        </motion.div>
       )}
     </motion.div>
   );
