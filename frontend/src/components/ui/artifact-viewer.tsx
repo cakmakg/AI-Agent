@@ -8,7 +8,7 @@ import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 import {
     FileText, CheckCircle, XCircle, Loader2, AlertTriangle,
-    RefreshCw, Database,
+    RefreshCw, Database, Copy, Check,
 } from "lucide-react";
 import { useAgentStore } from "@/store/agent-store";
 
@@ -64,7 +64,7 @@ const markdownComponents = {
         </blockquote>
     ),
     // ── Kod blokları: SyntaxHighlighter (dil tanımlıysa) / inline code ──
-    code: ({ className, children, ...rest }: { className?: string; children?: React.ReactNode; [key: string]: unknown }) => {
+    code: ({ className, children, ...rest }: { className?: string; children?: React.ReactNode;[key: string]: unknown }) => {
         const match = /language-(\w+)/.exec(className || "");
         const codeString = String(children ?? "").replace(/\n$/, "");
 
@@ -123,6 +123,26 @@ export const ArtifactViewer = () => {
     const [feedback, setFeedback] = useState("");
     const [isActing, setIsActing] = useState(false);
     const [isPulling, setIsPulling] = useState(false);
+    const [copied, setCopied] = useState(false);
+
+    const handleCopy = async () => {
+        if (!pendingContent) return;
+        try {
+            await navigator.clipboard.writeText(pendingContent);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        } catch {
+            // fallback
+            const ta = document.createElement("textarea");
+            ta.value = pendingContent;
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand("copy");
+            document.body.removeChild(ta);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        }
+    };
 
     const isVisible = workflowPhase === "AWAITING_APPROVAL" && !!pendingContent;
 
@@ -191,7 +211,26 @@ export const ArtifactViewer = () => {
                             </div>
                         </div>
 
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2">
+                            {/* COPY */}
+                            <motion.button
+                                whileHover={{ scale: 1.04 }}
+                                whileTap={{ scale: 0.96 }}
+                                onClick={handleCopy}
+                                disabled={!pendingContent}
+                                title="Copy to clipboard"
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded font-mono text-[9px] font-bold uppercase tracking-[0.15em] transition-all disabled:opacity-40"
+                                style={{
+                                    border: copied ? "1px solid rgba(57,255,20,0.5)" : "1px solid rgba(255,255,255,0.15)",
+                                    background: copied ? "rgba(57,255,20,0.08)" : "rgba(255,255,255,0.04)",
+                                    color: copied ? "#39ff14" : "rgba(255,255,255,0.45)",
+                                }}
+                                aria-label="Copy artifact content"
+                            >
+                                {copied ? <Check size={9} /> : <Copy size={9} />}
+                                {copied ? "COPIED" : "COPY"}
+                            </motion.button>
+
                             {/* PULL LATEST INTEL */}
                             <motion.button
                                 whileHover={{ scale: 1.04 }}
