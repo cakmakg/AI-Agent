@@ -151,6 +151,60 @@ async function runHotLeadWorkflow(threadId, task) {
     }
 }
 
+// ♻️ Revizyon workflow'u — OVERRIDE sonrası arka planda graph'ı devam ettirir
+async function runRevisionWorkflow(threadId) {
+    const config = { configurable: { thread_id: threadId }, recursionLimit: 100 };
+    let interruptDetected = false;
+
+    try {
+        console.log(`   ♻️ Revizyon başladı — threadId: ${threadId}`);
+        for await (const chunk of await app.stream(null, config)) {
+            const nodeName = Object.keys(chunk)[0];
+            const agentId = AGENT_UI_MAP[nodeName];
+            console.log(`   📡 REV SSE → node: ${nodeName}, agentId: ${agentId ?? "none"}`);
+            if (agentId) {
+                emitToThread(threadId, { type: "agent_active", agent: agentId });
+            }
+            if (nodeName === "__interrupt__") {
+                console.log(`   🛑 REV INTERRUPT — yeni revizyon hazır`);
+                interruptDetected = true;
+                break;
+            }
+        }
+
+        const currentState = await app.getState(config);
+        const awaitingHITL =
+            interruptDetected ||
+            currentState.next.includes("human_approval") ||
+            currentState.tasks?.some(t => t.interrupts?.length > 0);
+
+        if (awaitingHITL) {
+            let pendingContent = currentState.values?.finalContent || "";
+            if (!pendingContent) {
+                const report = await Report.findOne({ threadId }).sort({ createdAt: -1 });
+                if (report?.content) pendingContent = report.content;
+            }
+            if (!pendingContent) pendingContent = "*(Revizyon hazır — Pull Intel ile yükleyin)*";
+
+            await Report.findOneAndUpdate(
+                { threadId },
+                { content: pendingContent, status: "AWAITING_APPROVAL" },
+                { upsert: true, new: true }
+            );
+
+            emitToThread(threadId, {
+                type: "workflow_complete",
+                status: "AWAITING_HUMAN_APPROVAL",
+                pendingContent,
+            });
+            console.log(`   ✅ REV workflow_complete emitted (${pendingContent.length} chars)`);
+        }
+    } catch (err) {
+        console.error("❌ runRevisionWorkflow hatası:", err.message);
+        emitToThread(threadId, { type: "error", message: "Revision failed: " + err.message });
+    }
+}
+
 // ---------------------------------------------------------
 // 1. LANGGRAPH İŞ AKIŞI VE HAFIZA KURULUMU
 // ---------------------------------------------------------
@@ -324,35 +378,49 @@ server.post("/api/approve", async (req, res) => {
         const { threadId, isApproved, feedback, category } = req.body;
         if (!threadId) return res.status(400).json({ error: "Lütfen threadId belirtin." });
 
-        // 🎯 1. DURUM: DESTEK TALEBİ ONAYI
+        // 🎯 1. DURUM: DESTEK TALEBİ
         if (category === "SUPPORT_BUG" || category === "SUPPORT_PRICING") {
             if (isApproved) {
-                console.log(`\n📧 [E-POSTA GÖNDERİLİYOR] -> Konu: Destek Talebi Hk.`);
+                console.log(`\n📧 [E-POSTA GÖNDERİLİYOR] → Konu: Destek Talebi Hk.`);
                 console.log(`📝 İçerik: ${feedback || "Ajanın hazırladığı taslak başarıyla gönderildi."}`);
                 return res.json({ success: true, status: "EMAIL_SENT", message: "Destek cevabı gönderildi!" });
             }
             return res.json({ success: true, status: "REJECTED", message: "Taslak reddedildi." });
         }
 
-        // 🚀 2. DURUM: SATIŞ (ORKESTRA) AKIŞI DEVAM ETTİRME
+        // 🚀 2. DURUM: SATIŞ (HOT_LEAD) AKIŞİ
         const config = { configurable: { thread_id: threadId } };
+
         await app.updateState(config, {
             humanApproval: isApproved,
             humanFeedback: feedback || (isApproved ? "Onaylandı." : "Yeniden yaz.")
         });
 
-        await app.invoke(null, config);
-
-        // MongoDB'deki raporu güncelle
-        await Report.findOneAndUpdate(
-            { threadId },
-            { status: isApproved ? "PUBLISHED" : "REJECTED", humanFeedback: feedback || "" }
-        );
-
-        return res.json({ success: true, status: isApproved ? "PUBLISHED" : "REVISED" });
+        if (isApproved) {
+            // AUTHORIZE: Publisher senkron çalışır, hızlı
+            await app.invoke(null, config);
+            await Report.findOneAndUpdate(
+                { threadId },
+                { status: "PUBLISHED", humanFeedback: feedback || "" }
+            );
+            return res.json({ success: true, status: "PUBLISHED" });
+        } else {
+            // OVERRIDE: Hemen yanıt ver, revizyon arka planda çalışsın
+            await Report.findOneAndUpdate(
+                { threadId },
+                { status: "REJECTED", humanFeedback: feedback || "" }
+            );
+            runRevisionWorkflow(threadId).catch(err =>
+                console.error("❌ Revision background error:", err.message)
+            );
+            return res.json({ success: true, status: "REVISED" });
+        }
 
     } catch (error) {
-        res.status(500).json({ success: false, error: error.message });
+        console.error("❌ /api/approve hatası:", error.message);
+        if (!res.headersSent) {
+            res.status(500).json({ success: false, error: error.message });
+        }
     }
 });
 
