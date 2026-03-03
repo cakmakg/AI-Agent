@@ -36,10 +36,11 @@ const AGENT_UI_MAP = {
     analyzer: "analyst",
     writer: "writer",
     critic: "qa",
-    fileSaver: null,           // UI'da karşılığı yok
+    fileSaver: null,
     human_approval: "hitl",
     publisher: "publisher",
     architect: "cto",
+    __interrupt__: "hitl",   // LangGraph interrupt → HITL
 };
 
 import { Report } from "./models/Report.js";
@@ -49,10 +50,10 @@ import { orchestratorNode } from "./agents/orchestrator.js";
 import { scraperNode } from "./agents/scraperAgent.js";
 import { analyzerNode } from "./agents/analyzerAgent.js";
 import { writerNode } from "./agents/writerAgent.js";
-import { criticNode } from "./agents/criticAgent.js"; 
+import { criticNode } from "./agents/criticAgent.js";
 import { fileNode } from "./agents/fileAgent.js";
 import { publisherNode } from "./agents/publisherAgent.js";
-import { processIncomingMessage } from "./agents/customerBotAgent.js"; 
+import { processIncomingMessage } from "./agents/customerBotAgent.js";
 import { architectNode } from "./agents/architectAgent.js";
 
 // 🎯 Yargıç Gölge Düğümü
@@ -72,14 +73,47 @@ async function runHotLeadWorkflow(threadId, task) {
             if (agentId) {
                 emitToThread(threadId, { type: "agent_active", agent: agentId });
             }
+            // __interrupt__ chunk gelince stream burada durur
+            if (nodeName === "__interrupt__") {
+                console.log(`   🛑 INTERRUPT detected — fetching pendingContent…`);
+                break;
+            }
         }
+
         const currentState = await app.getState(config);
-        if (currentState.next.includes("human_approval")) {
+        const awaitingHITL = currentState.next.includes("human_approval")
+            || (currentState.next.length === 0 && currentState.tasks?.some(t => t.interrupts?.length > 0));
+
+        if (awaitingHITL) {
+            // 1) State'den al
+            let pendingContent = currentState.values.finalContent || "";
+
+            // 2) Boşsa MongoDB'den çek (CTO blueprint akışları için)
+            if (!pendingContent) {
+                try {
+                    const report = await Report.findOne({ threadId }).sort({ createdAt: -1 });
+                    if (report?.content) {
+                        pendingContent = report.content;
+                        console.log(`   📦 pendingContent MongoDB'den alındı (${pendingContent.length} chars)`);
+                    }
+                } catch (dbErr) {
+                    console.warn("   ⚠️ MongoDB fallback başarısız:", dbErr.message);
+                }
+            }
+
+            // 3) Hâlâ boşsa blueprintContent'i dene
+            if (!pendingContent) {
+                pendingContent = currentState.values.blueprintContent
+                    || currentState.values.blueprint
+                    || "*(İçerik hazır — MongoDB'den yükleyin)*";
+            }
+
             emitToThread(threadId, {
                 type: "workflow_complete",
                 status: "AWAITING_HUMAN_APPROVAL",
-                pendingContent: currentState.values.finalContent || "",
+                pendingContent,
             });
+            console.log(`   ✅ workflow_complete emitted (${pendingContent.length} chars)`);
         }
     } catch (err) {
         console.error("❌ runHotLeadWorkflow hatası:", err.message);
@@ -114,7 +148,7 @@ const workflow = new StateGraph(StateAnnotation)
 const checkpointer = new MemorySaver();
 const app = workflow.compile({
     checkpointer,
-    interruptBefore: ["human_approval"] 
+    interruptBefore: ["human_approval"]
 });
 
 // ---------------------------------------------------------
@@ -228,14 +262,14 @@ server.post("/api/inbox", async (req, res) => {
         // 🎯 DESTEK TALEBİ DURUMU
         if (leadAnalysis.category === "SUPPORT_PRICING" || leadAnalysis.category === "SUPPORT_BUG") {
             console.log("🛑 SİSTEM DURDU: Destek talebi için Yargıç Onayı Bekleniyor!");
-            const threadId = uuidv4(); 
+            const threadId = uuidv4();
             return res.json({
                 success: true,
                 status: "AWAITING_HUMAN_APPROVAL_SUPPORT",
                 threadId,
                 category: leadAnalysis.category,
                 message: "Destek talebi geldi. Taslak cevap Yargıç onayında.",
-                pendingContent: leadAnalysis.draftResponse 
+                pendingContent: leadAnalysis.draftResponse
             });
         }
 

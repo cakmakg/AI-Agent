@@ -233,7 +233,6 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
 
                     if (event.type === "agent_active" && event.agent) {
                         const agentId = event.agent as AgentId;
-                        // Orchestrator (CEO) çok sık dönüyor; ara ajan bitince SUCCESS'e al
                         if (previousAgent && previousAgent !== agentId && previousAgent !== "ceo") {
                             get().setAgentStatus(previousAgent, "SUCCESS");
                         }
@@ -248,20 +247,48 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
                         previousAgent = agentId;
                     }
 
+                    // ── __interrupt__ geldiğinde: spinner dur, modal aç ──
+                    if (event.type === "interrupt" || event.agent === "hitl") {
+                        // Bu event zaten agent_active olarak gelecek (backend düzeltildi)
+                        // ama ek güvence olarak burada da kontrol ediyoruz
+                    }
+
                     if (event.type === "workflow_complete") {
                         eventSource.close();
                         if (event.status === "AWAITING_HUMAN_APPROVAL") {
                             if (previousAgent && previousAgent !== "ceo") {
                                 get().setAgentStatus(previousAgent, "SUCCESS");
                             }
-                            set({
-                                pendingContent: event.pendingContent || "No content available.",
-                                workflowPhase: "AWAITING_APPROVAL",
-                            });
                             get().setAgentStatus("hitl", "ACTIVE");
                             get().setActiveAgent("hitl");
-                            addLog({ timestamp: getTimestamp(), agent: "SYSTEM", message: "Workflow complete. Awaiting HITL authorization.", level: "WARN" });
-                            addAlert({ message: "MISSION COMPLETE — AWAITING YOUR AUTHORIZATION", type: "warning" });
+
+                            const content = event.pendingContent?.trim();
+
+                            if (content) {
+                                // İçerik SSE ile geldi — direkt kullan
+                                set({ pendingContent: content, workflowPhase: "AWAITING_APPROVAL" });
+                                addLog({ timestamp: getTimestamp(), agent: "SYSTEM", message: "Workflow complete. Awaiting HITL authorization.", level: "WARN" });
+                                addAlert({ message: "MISSION COMPLETE — AWAITING YOUR AUTHORIZATION", type: "warning" });
+                            } else {
+                                // İçerik boş — MongoDB'den çek (CTO/architect akışları)
+                                addLog({ timestamp: getTimestamp(), agent: "SYSTEM", message: "Workflow complete. Fetching artifact from MongoDB...", level: "WARN" });
+                                const currentThreadId = get().threadId;
+                                const url = currentThreadId
+                                    ? `/api/artifact/${currentThreadId}`
+                                    : `/api/artifact/latest`;
+
+                                fetch(url)
+                                    .then((r) => r.json())
+                                    .then((artifact) => {
+                                        const fetched = artifact.content?.trim() || "*(İçerik hazır — yeniden yükleyin)*";
+                                        set({ pendingContent: fetched, workflowPhase: "AWAITING_APPROVAL" });
+                                        addAlert({ message: "MISSION COMPLETE — AWAITING YOUR AUTHORIZATION", type: "warning" });
+                                    })
+                                    .catch(() => {
+                                        set({ pendingContent: "*(Blueprint hazır — Pull Intel ile yükleyin)*", workflowPhase: "AWAITING_APPROVAL" });
+                                        addAlert({ message: "MISSION COMPLETE — AWAITING YOUR AUTHORIZATION", type: "warning" });
+                                    });
+                            }
                         }
                     }
 
