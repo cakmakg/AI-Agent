@@ -423,24 +423,38 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     // ── Pull Latest Intel from MongoDB ──
     pullLatestArtifact: async () => {
         const { threadId, addLog, addAlert } = get();
-        const url = threadId ? `/api/artifact/${threadId}` : `/api/artifact/latest`;
-        try {
+        const primaryUrl = threadId ? `/api/artifact/${threadId}` : `/api/artifact/latest`;
+
+        const tryFetch = async (url: string) => {
             const res = await fetch(url);
-            if (res.status === 404) {
+            if (!res.ok) return null;
+            const data = await res.json();
+            if (!data.success || !data.content) return null;
+            return data;
+        };
+
+        try {
+            // 1) threadId ile dene
+            let data = await tryFetch(primaryUrl);
+
+            // 2) Bulunamazsa /latest'e düş
+            if (!data && threadId) {
+                addLog({ timestamp: getTimestamp(), agent: "SYSTEM", message: `ThreadId ile bulunamadı — /latest deneniyor...`, level: "WARN" });
+                data = await tryFetch(`/api/artifact/latest`);
+            }
+
+            if (!data) {
                 addAlert({ message: "NO PENDING INTEL — System is still processing", type: "warning" });
                 addLog({ timestamp: getTimestamp(), agent: "SYSTEM", message: "Intel pull: no pending reports found in MongoDB.", level: "WARN" });
                 return;
             }
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const data = await res.json();
-            if (!data.success) throw new Error(data.error || "Pull failed");
-            // Update store with fetched artifact
+
             set({
                 pendingContent: data.content,
                 workflowPhase: "AWAITING_APPROVAL",
                 ...(data.threadId && !threadId ? { threadId: data.threadId } : {}),
             });
-            addLog({ timestamp: getTimestamp(), agent: "SYSTEM", message: `Intel acquired from MongoDB — task: "${String(data.task ?? "").slice(0, 60)}..."`, level: "SUCCESS" });
+            addLog({ timestamp: getTimestamp(), agent: "SYSTEM", message: `Intel acquired: "${String(data.task ?? "").slice(0, 60)}..."`, level: "SUCCESS" });
             addAlert({ message: "INTEL ACQUIRED — ARTIFACT LOADED FROM DATABASE", type: "success" });
         } catch (error) {
             const errMsg = error instanceof Error ? error.message : "Pull failed";
