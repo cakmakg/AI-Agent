@@ -9,7 +9,6 @@ import { SignalInbox } from "@/components/radar/signal-inbox";
 import { GlassModal } from "@/components/ui/glass-modal";
 import { MissionInput } from "@/components/hud/mission-input";
 import { CronTimer } from "@/components/hud/cron-timer";
-import { ArtifactsPanel } from "@/components/hud/artifacts-panel";
 import { SystemAlerts } from "@/components/ui/system-alert";
 import { useAgentStore } from "@/store/agent-store";
 import { Activity, Wifi, Cpu, Shield, AlertTriangle } from "lucide-react";
@@ -85,8 +84,6 @@ function HitlAwaitingAlarm({ onOpen }: { onOpen: () => void }) {
 export default function Home() {
   const [reviewOpen, setReviewOpen] = useState(false);
   const workflowPhase = useAgentStore((s) => s.workflowPhase);
-  const ctoStatus = useAgentStore((s) => s.agents.cto.status);
-  const isCtoActive = ctoStatus === "ACTIVE" || ctoStatus === "THINKING";
 
   // Auto-open review modal when approval needed
   useEffect(() => {
@@ -143,33 +140,9 @@ export default function Home() {
           <ConstellationGraph />
         </section>
 
-        {/* RIGHT PANEL: Swaps between ArtifactsPanel (CTO active) and SignalInbox */}
+        {/* RIGHT PANEL: Signal Inbox / HITL */}
         <section className="w-[300px] shrink-0">
-          <AnimatePresence mode="wait">
-            {isCtoActive ? (
-              <motion.div
-                key="artifacts"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 20 }}
-                transition={{ duration: 0.3 }}
-                className="w-full h-full"
-              >
-                <ArtifactsPanel />
-              </motion.div>
-            ) : (
-              <motion.div
-                key="signal"
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                transition={{ duration: 0.3 }}
-                className="w-full h-full"
-              >
-                <SignalInbox onOpenReview={() => setReviewOpen(true)} />
-              </motion.div>
-            )}
-          </AnimatePresence>
+          <SignalInbox onOpenReview={() => setReviewOpen(true)} />
         </section>
       </main>
 

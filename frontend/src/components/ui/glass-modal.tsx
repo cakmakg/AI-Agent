@@ -4,6 +4,8 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ShieldCheck, ShieldX, X, AlertTriangle, Lock, FileText, MessageSquare } from "lucide-react";
 import { useAgentStore } from "@/store/agent-store";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 const CornerBracket = ({ position }: { position: "tl" | "tr" | "bl" | "br" }) => {
     const positionClasses: Record<string, string> = {
@@ -121,8 +123,34 @@ export const GlassModal = ({ isOpen, onClose }: Props) => {
 
                             <div className="relative rounded border border-white/8 bg-white/[0.02] overflow-hidden">
                                 <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-cyber-amber via-neon-blue to-cyber-amber" />
-                                <div className="p-4 pl-5 font-mono text-[11px] text-white/70 leading-relaxed whitespace-pre-wrap max-h-[300px] overflow-y-auto scrollbar-hide">
-                                    {pendingContent || "No content available."}
+                                <div className="p-4 pl-5 max-h-[340px] overflow-y-auto scrollbar-hide">
+                                    <ReactMarkdown
+                                        remarkPlugins={[remarkGfm]}
+                                        components={{
+                                            h1: ({ children }) => <h1 className="text-neon-blue font-mono font-bold text-[14px] mb-3 mt-1 tracking-wide" style={{ textShadow: "0 0 10px rgba(0,240,255,0.5)" }}>{children}</h1>,
+                                            h2: ({ children }) => <h2 className="text-neon-green font-mono font-semibold text-[12px] mb-2 mt-3 tracking-wide" style={{ textShadow: "0 0 8px rgba(57,255,20,0.4)" }}>{children}</h2>,
+                                            h3: ({ children }) => <h3 className="text-cyber-amber font-mono font-semibold text-[11px] mb-1.5 mt-2">{children}</h3>,
+                                            p: ({ children }) => <p className="font-mono text-[11px] text-white/65 leading-relaxed mb-2">{children}</p>,
+                                            code: ({ className, children }) =>
+                                                className
+                                                    ? <code className="block font-mono text-[10px] text-neon-green/80 leading-relaxed">{children}</code>
+                                                    : <code className="font-mono text-[10px] text-neon-green bg-neon-green/10 px-1 py-0.5 rounded">{children}</code>,
+                                            pre: ({ children }) => <pre className="bg-black/40 border border-neon-green/15 rounded p-3 mb-3 overflow-x-auto scrollbar-hide">{children}</pre>,
+                                            ul: ({ children }) => <ul className="list-none space-y-1 mb-2 pl-2">{children}</ul>,
+                                            ol: ({ children }) => <ol className="list-decimal list-inside space-y-1 mb-2 font-mono text-[11px] text-white/60 pl-2">{children}</ol>,
+                                            li: ({ children }) => <li className="font-mono text-[11px] text-white/60 flex gap-2 items-start"><span className="text-neon-blue/60 mt-0.5 shrink-0">▸</span><span>{children}</span></li>,
+                                            strong: ({ children }) => <strong className="text-white/90 font-semibold">{children}</strong>,
+                                            em: ({ children }) => <em className="text-cyber-amber/80 not-italic">{children}</em>,
+                                            blockquote: ({ children }) => <blockquote className="border-l-2 border-cyber-amber/40 pl-3 my-2 text-white/50 font-mono text-[10px]">{children}</blockquote>,
+                                            hr: () => <hr className="border-white/10 my-3" />,
+                                            a: ({ children, href }) => <a href={href} className="text-neon-blue hover:text-neon-blue/80 underline decoration-neon-blue/30" target="_blank" rel="noopener noreferrer">{children}</a>,
+                                            table: ({ children }) => <table className="w-full font-mono text-[10px] border-collapse mb-3">{children}</table>,
+                                            th: ({ children }) => <th className="text-left text-neon-blue/80 border-b border-white/10 pb-1 pr-4 font-semibold">{children}</th>,
+                                            td: ({ children }) => <td className="text-white/55 border-b border-white/5 py-1 pr-4">{children}</td>,
+                                        }}
+                                    >
+                                        {pendingContent || "*No content available.*"}
+                                    </ReactMarkdown>
                                 </div>
                             </div>
 

@@ -14,6 +14,21 @@ import { StateAnnotation } from "./state/graphState.js";
 const agentEventBus = new EventEmitter();
 agentEventBus.setMaxListeners(50);
 
+// 🗄️ Event Buffer — SSE bağlantısı kurulmadan önce gelen eventleri saklar
+const eventBuffers = new Map(); // threadId → event[]
+
+function emitToThread(threadId, event) {
+    if (agentEventBus.listenerCount(threadId) === 0) {
+        // Henüz dinleyici yok — buffer'a ekle
+        if (!eventBuffers.has(threadId)) eventBuffers.set(threadId, []);
+        eventBuffers.get(threadId).push(event);
+    } else {
+        agentEventBus.emit(threadId, event);
+    }
+    // Buffer 5 dakikadan uzun yaşamasın (bellek sızıntısı önlemi)
+    setTimeout(() => eventBuffers.delete(threadId), 5 * 60 * 1000);
+}
+
 // Backend node adı → Frontend agent ID eşlemesi
 const AGENT_UI_MAP = {
     orchestrator: "ceo",
@@ -53,12 +68,12 @@ async function runHotLeadWorkflow(threadId, task) {
             const agentId = AGENT_UI_MAP[nodeName];
             console.log(`   📡 SSE → node: ${nodeName}, agentId: ${agentId ?? "none"}`);
             if (agentId) {
-                agentEventBus.emit(threadId, { type: "agent_active", agent: agentId });
+                emitToThread(threadId, { type: "agent_active", agent: agentId });
             }
         }
         const currentState = await app.getState(config);
         if (currentState.next.includes("human_approval")) {
-            agentEventBus.emit(threadId, {
+            emitToThread(threadId, {
                 type: "workflow_complete",
                 status: "AWAITING_HUMAN_APPROVAL",
                 pendingContent: currentState.values.finalContent || "",
@@ -66,7 +81,7 @@ async function runHotLeadWorkflow(threadId, task) {
         }
     } catch (err) {
         console.error("❌ runHotLeadWorkflow hatası:", err.message);
-        agentEventBus.emit(threadId, { type: "error", message: err.message });
+        emitToThread(threadId, { type: "error", message: err.message });
     }
 }
 
@@ -128,6 +143,18 @@ server.get("/api/events/:threadId", (req, res) => {
         "X-Accel-Buffering": "no",
     });
     res.write("\n"); // headers'ı flush et
+
+    // Buffer'da bekleyen eventleri önce gönder
+    const buffered = eventBuffers.get(threadId) || [];
+    eventBuffers.delete(threadId);
+    for (const event of buffered) {
+        res.write(`data: ${JSON.stringify(event)}\n\n`);
+        // workflow_complete veya error buffer'da varsa bağlantıyı kapat
+        if (event.type === "workflow_complete" || event.type === "error") {
+            res.end();
+            return;
+        }
+    }
 
     const listener = (event) => {
         res.write(`data: ${JSON.stringify(event)}\n\n`);
