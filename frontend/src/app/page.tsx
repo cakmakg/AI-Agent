@@ -121,8 +121,7 @@ function AuthGateWidget() {
 
 function PullIntelButton() {
   const [isPulling, setIsPulling] = useState(false);
-  const { pullLatestArtifact, workflowPhase } = useAgentStore();
-  const active = workflowPhase !== "IDLE";
+  const { pullLatestArtifact } = useAgentStore();
 
   const handlePull = async () => {
     setIsPulling(true);
@@ -132,26 +131,26 @@ function PullIntelButton() {
 
   return (
     <motion.button
-      whileHover={active ? { scale: 1.04 } : {}}
-      whileTap={active ? { scale: 0.96 } : {}}
-      onClick={active ? handlePull : undefined}
+      whileHover={{ scale: 1.04 }}
+      whileTap={{ scale: 0.96 }}
+      onClick={handlePull}
       disabled={isPulling}
       className="flex items-center gap-2 px-4 py-1.5 rounded font-mono text-[9px] font-bold uppercase tracking-[0.18em] transition-all disabled:cursor-wait"
       style={{
-        border: active ? "1px solid rgba(0,240,255,0.4)" : "1px solid rgba(255,255,255,0.07)",
-        background: active ? "rgba(0,240,255,0.06)" : "rgba(255,255,255,0.03)",
-        color: active ? "#00f0ff" : "rgba(255,255,255,0.2)",
-        boxShadow: active ? "0 0 12px rgba(0,240,255,0.08)" : "none",
-        cursor: active ? "pointer" : "default",
+        border: "1px solid rgba(0,240,255,0.4)",
+        background: "rgba(0,240,255,0.06)",
+        color: "#00f0ff",
+        boxShadow: "0 0 12px rgba(0,240,255,0.08)",
+        cursor: isPulling ? "wait" : "pointer",
       }}
       onMouseEnter={(e) => {
-        if (!active) return;
-        (e.currentTarget as HTMLButtonElement).style.background = "rgba(0,240,255,0.13)";
-        (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 0 20px rgba(0,240,255,0.22)";
+        if (isPulling) return;
+        (e.currentTarget as HTMLButtonElement).style.background = "rgba(0,240,255,0.14)";
+        (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 0 22px rgba(0,240,255,0.25)";
       }}
       onMouseLeave={(e) => {
-        (e.currentTarget as HTMLButtonElement).style.background = active ? "rgba(0,240,255,0.06)" : "rgba(255,255,255,0.03)";
-        (e.currentTarget as HTMLButtonElement).style.boxShadow = active ? "0 0 12px rgba(0,240,255,0.08)" : "none";
+        (e.currentTarget as HTMLButtonElement).style.background = "rgba(0,240,255,0.06)";
+        (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 0 12px rgba(0,240,255,0.08)";
       }}
     >
       {isPulling ? <Loader2 size={10} className="animate-spin" /> : <Download size={10} />}

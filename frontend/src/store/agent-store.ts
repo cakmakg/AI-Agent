@@ -57,6 +57,7 @@ interface AgentStore {
     threadId: string | null;
     pendingContent: string | null;
     missionMessage: string | null;
+    missionCategory: "HOT_LEAD" | "SUPPORT" | null;
 
     // ── Logs & Alerts ──
     logs: LogEntry[];
@@ -111,6 +112,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     threadId: null,
     pendingContent: null,
     missionMessage: null,
+    missionCategory: null,
     logs: [],
     alerts: [],
     cronSecondsLeft: 120,
@@ -190,6 +192,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
                     threadId: data.threadId,
                     pendingContent: data.pendingContent || "No content available.",
                     workflowPhase: "AWAITING_APPROVAL",
+                    missionCategory: "SUPPORT",
                 });
                 setAgentStatus("ceo", "SUCCESS");
                 setAgentStatus("hitl", "ACTIVE");
@@ -201,7 +204,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
 
             // HOT_LEAD — SSE ile gerçek zamanlı ajan takibi
             if (data.status === "PROCESSING" && data.threadId) {
-                set({ threadId: data.threadId });
+                set({ threadId: data.threadId, missionCategory: "HOT_LEAD" });
                 addLog({ timestamp: getTimestamp(), agent: "CEO", message: "Workflow started. Tracking agents via SSE...", level: "INFO" });
 
                 let previousAgent: AgentId | null = "ceo";
@@ -314,7 +317,12 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
             const res = await fetch("/api/approve", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ threadId, isApproved: true, feedback: feedback || "", category: "HOT_LEAD" }),
+                body: JSON.stringify({
+                    threadId,
+                    isApproved: true,
+                    feedback: feedback || "",
+                    category: get().missionCategory === "SUPPORT" ? "SUPPORT_PRICING" : "HOT_LEAD",
+                }),
             });
 
             const data = await res.json();
@@ -328,7 +336,8 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
                 // Reset after 4 seconds
                 setTimeout(() => {
                     get().resetAllAgents();
-                    set({ workflowPhase: "IDLE", threadId: null, pendingContent: null, missionMessage: null });
+                    set({ workflowPhase: "IDLE", threadId: null, pendingContent: null, missionMessage: null, missionCategory: null });
+                    get().setActiveAgent(null);
                 }, 4000);
             } else {
                 throw new Error(data.error || "Approval failed");
@@ -359,7 +368,12 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
             const res = await fetch("/api/approve", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ threadId, isApproved: false, feedback, category: "HOT_LEAD" }),
+                body: JSON.stringify({
+                    threadId,
+                    isApproved: false,
+                    feedback,
+                    category: get().missionCategory === "SUPPORT" ? "SUPPORT_PRICING" : "HOT_LEAD",
+                }),
             });
 
             const data = await res.json();
