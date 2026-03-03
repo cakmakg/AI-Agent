@@ -46,7 +46,7 @@ function WorkflowBadge() {
 }
 
 // ── Fixed Top-Right Authorization Gate Widget ──
-function AuthGateWidget() {
+function AuthGateWidget({ onOpenReview }: { onOpenReview: () => void }) {
   const workflowPhase = useAgentStore((s) => s.workflowPhase);
   const isAwaiting = workflowPhase === "AWAITING_APPROVAL";
   const isDelivered = workflowPhase === "DELIVERED";
@@ -62,8 +62,9 @@ function AuthGateWidget() {
   return (
     <motion.div
       layout
+      onClick={isAwaiting ? onOpenReview : undefined}
       className={`fixed top-[52px] right-4 z-50 flex flex-col gap-1.5 px-3 py-2.5 rounded
-        bg-[#060a0f]/90 backdrop-blur-xl border transition-all duration-300 cursor-default`}
+        bg-[#060a0f]/90 backdrop-blur-xl border transition-all duration-300 ${isAwaiting ? "cursor-pointer" : "cursor-default"}`}
       style={{
         minWidth: 160,
         borderColor: statusCfg.borderColor,
@@ -163,12 +164,15 @@ export default function Home() {
   const ctoStatus = useAgentStore((s) => s.agents.cto.status);
   const ctoActive = ctoStatus === "ACTIVE" || ctoStatus === "THINKING";
 
+  const { pullLatestArtifact } = useAgentStore();
+  const handleOpenReview = () => pullLatestArtifact();
+
   return (
     <div className="relative w-screen h-screen flex flex-col overflow-hidden" style={{ background: "#090e1a" }}>
       <BackgroundGrid />
       <SystemAlerts />
       {/* ── Fixed Top-Right Authorization Gate ── */}
-      <AuthGateWidget />
+      <AuthGateWidget onOpenReview={handleOpenReview} />
 
       {/* ── Top Status Bar ── */}
       <header className="relative z-20 flex items-center justify-between px-6 py-2 border-b border-white/5 bg-black/40 backdrop-blur-md shrink-0">
@@ -220,9 +224,8 @@ export default function Home() {
           <ArtifactViewer />
         </section>
 
-        {/* RIGHT PANEL: Signal Inbox / HITL */}
         <section className="w-[300px] shrink-0">
-          <SignalInbox onOpenReview={() => { }} />
+          <SignalInbox onOpenReview={handleOpenReview} />
         </section>
       </main>
 
