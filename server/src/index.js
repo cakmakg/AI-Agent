@@ -446,9 +446,8 @@ server.listen(PORT, () => {
 // ==========================================
 // 🔬 AR-GE (R&D) DEPARTMANI — PROAKTİF MOTOR
 // ==========================================
-// Üretim: "0 8 * * *"  → Her sabah 08:00'de çalışır
-// Test   : "*/2 * * * *" → Her 2 dakikada bir çalışır
-cron.schedule("0 8 * * *", () => {
+// ⚠️ TEST MODU — Test sonrası "0 8 * * *" ile değiştir!
+cron.schedule("*/2 * * * *", () => {
     const threadId = "RND-" + Date.now();
     console.log(`\n⏰ [AR-GE ALARMI ÇALDI] Teknoloji Radarı uyandı! threadId: ${threadId}`);
     console.log("🕵️‍♂️ İnternetteki en yeni yapay zeka gelişmeleri taranıyor...\n");
