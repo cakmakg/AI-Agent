@@ -44,40 +44,63 @@ function WorkflowBadge() {
   );
 }
 
-// ── Prominent HITL Awaiting Alarm ──
-function HitlAwaitingAlarm({ onOpen }: { onOpen: () => void }) {
+// ── Fixed Top-Right Authorization Gate Widget ──
+function AuthGateWidget({ onOpen }: { onOpen: () => void }) {
   const workflowPhase = useAgentStore((s) => s.workflowPhase);
   const isAwaiting = workflowPhase === "AWAITING_APPROVAL";
+  const isDelivered = workflowPhase === "DELIVERED";
+  const isRevising = workflowPhase === "REVISING";
+  const isActive = workflowPhase === "RUNNING" || workflowPhase === "DISPATCHING" || workflowPhase === "PUBLISHING";
+
+  const state = isAwaiting ? "awaiting" : isDelivered ? "delivered" : isRevising ? "revising" : isActive ? "active" : "idle";
+
+  const cfg = {
+    idle: { border: "border-white/8", bg: "bg-black/40", glow: "", dot: "bg-white/20", label: "STANDBY", sub: "No pending requests", labelColor: "text-white/20", icon: null },
+    active: { border: "border-neon-blue/30", bg: "bg-neon-blue/5", glow: "shadow-[0_0_12px_rgba(0,240,255,0.08)]", dot: "bg-neon-blue animate-pulse", label: "PROCESSING", sub: "Agents working...", labelColor: "text-neon-blue", icon: null },
+    awaiting: { border: "border-cyber-amber/50", bg: "bg-cyber-amber/8", glow: "shadow-[0_0_25px_rgba(255,176,0,0.2)]", dot: "bg-cyber-amber animate-pulse", label: "AWAITING AUTH", sub: "Click to review", labelColor: "text-cyber-amber", icon: <AlertTriangle size={11} className="text-cyber-amber" /> },
+    delivered: { border: "border-neon-green/30", bg: "bg-neon-green/5", glow: "shadow-[0_0_12px_rgba(57,255,20,0.08)]", dot: "bg-neon-green", label: "DELIVERED", sub: "Payload transmitted", labelColor: "text-neon-green", icon: null },
+    revising: { border: "border-alert-red/40", bg: "bg-alert-red/8", glow: "shadow-[0_0_12px_rgba(255,45,85,0.1)]", dot: "bg-alert-red animate-pulse", label: "REVISING", sub: "Revision cycle active", labelColor: "text-alert-red", icon: null },
+  }[state];
 
   return (
-    <AnimatePresence>
+    <motion.div
+      layout
+      onClick={isAwaiting ? onOpen : undefined}
+      className={`fixed top-[10px] right-4 z-50 flex items-center gap-2.5 px-3 py-2 rounded border
+        backdrop-blur-md transition-all duration-400 select-none
+        ${cfg.border} ${cfg.bg} ${cfg.glow}
+        ${isAwaiting ? "cursor-pointer hover:bg-cyber-amber/15" : "cursor-default"}`}
+      id="auth-gate-widget"
+      aria-label="Authorization gate status"
+    >
+      {/* Corner bracket decoration */}
+      <div className="absolute top-0 left-0 w-2 h-2 border-t border-l border-current opacity-40" style={{ color: isAwaiting ? "#ffb000" : "rgba(255,255,255,0.15)" }} />
+      <div className="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-current opacity-40" style={{ color: isAwaiting ? "#ffb000" : "rgba(255,255,255,0.15)" }} />
+
+      {/* Status dot */}
+      <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${cfg.dot}`} />
+
+      {/* Labels */}
+      <div className="flex flex-col">
+        <div className="flex items-center gap-1.5">
+          {cfg.icon}
+          <span className={`font-mono text-[9px] font-bold tracking-[0.18em] uppercase ${cfg.labelColor}`}
+            style={isAwaiting ? { textShadow: "0 0 8px rgba(255,176,0,0.6)" } : {}}>
+            {cfg.label}
+          </span>
+        </div>
+        <span className="font-mono text-[7px] text-white/25 tracking-wider">{cfg.sub}</span>
+      </div>
+
+      {/* Pulsing glow ring when awaiting */}
       {isAwaiting && (
-        <motion.button
-          initial={{ opacity: 0, scale: 0.9, y: -10 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.9, y: -10 }}
-          onClick={onOpen}
-          className="flex items-center gap-2.5 px-4 py-2 rounded border border-cyber-amber/60 bg-cyber-amber/10 cursor-pointer
-            shadow-[0_0_20px_rgba(255,176,0,0.3),inset_0_0_12px_rgba(255,176,0,0.05)]
-            hover:bg-cyber-amber/20 hover:shadow-[0_0_30px_rgba(255,176,0,0.4)] transition-all"
-          id="hitl-alarm-btn"
-          aria-label="Open HITL authorization panel"
-        >
-          <AlertTriangle size={14} className="text-cyber-amber animate-pulse" />
-          <div className="text-left">
-            <div className="text-[9px] font-mono font-bold tracking-[0.2em] uppercase" style={{ color: "#ffb000", textShadow: "0 0 8px rgba(255,176,0,0.7)" }}>
-              AWAITING AUTHORIZATION
-            </div>
-            <div className="text-[7px] font-mono text-cyber-amber/60 tracking-wider">Click to review &amp; authorize</div>
-          </div>
-          <motion.div
-            animate={{ opacity: [0.3, 1, 0.3] }}
-            transition={{ repeat: Infinity, duration: 1.5 }}
-            className="w-2 h-2 rounded-full bg-cyber-amber shadow-[0_0_8px_rgba(255,176,0,0.8)]"
-          />
-        </motion.button>
+        <motion.div
+          animate={{ opacity: [0.25, 0.8, 0.25] }}
+          transition={{ repeat: Infinity, duration: 1.4 }}
+          className="w-1.5 h-1.5 rounded-full bg-cyber-amber shadow-[0_0_8px_rgba(255,176,0,0.9)]"
+        />
       )}
-    </AnimatePresence>
+    </motion.div>
   );
 }
 
@@ -97,6 +120,8 @@ export default function Home() {
     <div className="relative w-screen h-screen flex flex-col overflow-hidden bg-black">
       <BackgroundGrid />
       <SystemAlerts />
+      {/* ── Fixed Top-Right Authorization Gate ── */}
+      <AuthGateWidget onOpen={() => setReviewOpen(true)} />
 
       {/* ── Top Status Bar ── */}
       <header className="relative z-20 flex items-center justify-between px-6 py-2 border-b border-white/5 bg-black/40 backdrop-blur-md shrink-0">
@@ -112,8 +137,8 @@ export default function Home() {
           <WorkflowBadge />
         </div>
 
-        {/* Center: HITL Alarm */}
-        <HitlAwaitingAlarm onOpen={() => setReviewOpen(true)} />
+        {/* Center placeholder — gate is fixed top-right */}
+        <div />
 
         <div className="flex items-center gap-5 text-[9px] font-mono text-white/30">
           <div className="flex items-center gap-1.5"><Activity size={10} className="text-neon-green" /><span>9 AGENTS</span></div>
