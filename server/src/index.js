@@ -150,6 +150,23 @@ async function runHotLeadWorkflow(threadId, task) {
         emitToThread(threadId, { type: "error", message: err.message });
     }
 }
+// 📤 Publisher workflow’u — AUTHORIZE sonrası arka planda çalışır
+async function runPublishWorkflow(threadId, feedbackNote) {
+    const config = { configurable: { thread_id: threadId }, recursionLimit: 100 };
+    try {
+        console.log(`   📤 Publisher başladı — threadId: ${threadId}`);
+        await app.invoke(null, config);
+        await Report.findOneAndUpdate(
+            { threadId },
+            { status: "PUBLISHED", humanFeedback: feedbackNote || "" }
+        );
+        console.log(`   ✅ PUBLISHED — threadId: ${threadId}`);
+    } catch (err) {
+        console.error("❌ runPublishWorkflow hatası:", err.message);
+        // Yine de MongoDB'yi güncelle
+        await Report.findOneAndUpdate({ threadId }, { status: "PUBLISHED" }).catch(() => { });
+    }
+}
 
 // ♻️ Revizyon workflow'u — OVERRIDE sonrası arka planda graph'ı devam ettirir
 async function runRevisionWorkflow(threadId) {
@@ -397,11 +414,9 @@ server.post("/api/approve", async (req, res) => {
         });
 
         if (isApproved) {
-            // AUTHORIZE: Publisher senkron çalışır, hızlı
-            await app.invoke(null, config);
-            await Report.findOneAndUpdate(
-                { threadId },
-                { status: "PUBLISHED", humanFeedback: feedback || "" }
+            // AUTHORIZE: Hemen yanıt ver, publisher arka planda çalışsın
+            runPublishWorkflow(threadId, feedback).catch(err =>
+                console.error("❌ Publish background error:", err.message)
             );
             return res.json({ success: true, status: "PUBLISHED" });
         } else {

@@ -352,7 +352,13 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
                 }),
             });
 
-            const data = await res.json();
+            // Safe JSON parse — backend 500 dönerse graceful handle
+            let data: { success?: boolean; status?: string; error?: string };
+            try {
+                data = await res.json();
+            } catch {
+                throw new Error(`Server error ${res.status} — backend crashed. Check terminal.`);
+            }
 
             if (data.success) {
                 setAgentStatus("publisher", "SUCCESS");
@@ -403,7 +409,13 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
                 }),
             });
 
-            const data = await res.json();
+            // Safe JSON parse
+            let data: { success?: boolean; status?: string; error?: string };
+            try {
+                data = await res.json();
+            } catch {
+                throw new Error(`Server error ${res.status} — backend crashed. Check terminal.`);
+            }
 
             if (data.success && data.status === "REVISED") {
                 addLog({ timestamp: getTimestamp(), agent: "SYSTEM", message: "Revision complete. New output pending review.", level: "INFO" });
