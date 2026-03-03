@@ -1,17 +1,18 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { BackgroundGrid } from "@/components/layout/background-grid";
 import { TerminalLogs } from "@/components/hud/terminal-logs";
 import { ConstellationGraph } from "@/components/network/constellation-graph";
 import { SignalInbox } from "@/components/radar/signal-inbox";
-import { GlassModal } from "@/components/ui/glass-modal";
+import { ArtifactViewer } from "@/components/ui/artifact-viewer";
+import { ArtifactsPanel } from "@/components/hud/artifacts-panel";
 import { MissionInput } from "@/components/hud/mission-input";
 import { CronTimer } from "@/components/hud/cron-timer";
 import { SystemAlerts } from "@/components/ui/system-alert";
 import { useAgentStore } from "@/store/agent-store";
-import { Activity, Wifi, Cpu, Shield, AlertTriangle } from "lucide-react";
+import { Activity, Wifi, Cpu, Shield, AlertTriangle, Download, Loader2 } from "lucide-react";
 
 function SystemClock() {
   const [time, setTime] = useState("");
@@ -45,7 +46,7 @@ function WorkflowBadge() {
 }
 
 // ── Fixed Top-Right Authorization Gate Widget ──
-function AuthGateWidget({ onOpen }: { onOpen: () => void }) {
+function AuthGateWidget() {
   const workflowPhase = useAgentStore((s) => s.workflowPhase);
   const isAwaiting = workflowPhase === "AWAITING_APPROVAL";
   const isDelivered = workflowPhase === "DELIVERED";
@@ -61,10 +62,8 @@ function AuthGateWidget({ onOpen }: { onOpen: () => void }) {
   return (
     <motion.div
       layout
-      onClick={isAwaiting ? onOpen : undefined}
       className={`fixed top-[52px] right-4 z-50 flex flex-col gap-1.5 px-3 py-2.5 rounded
-        bg-[#060a0f]/90 backdrop-blur-xl border transition-all duration-300
-        ${isAwaiting ? "cursor-pointer hover:bg-cyber-amber/5" : "cursor-default"}`}
+        bg-[#060a0f]/90 backdrop-blur-xl border transition-all duration-300 cursor-default`}
       style={{
         minWidth: 160,
         borderColor: statusCfg.borderColor,
@@ -120,24 +119,57 @@ function AuthGateWidget({ onOpen }: { onOpen: () => void }) {
   );
 }
 
-export default function Home() {
-  const [reviewOpen, setReviewOpen] = useState(false);
-  const workflowPhase = useAgentStore((s) => s.workflowPhase);
+function PullIntelButton() {
+  const [isPulling, setIsPulling] = useState(false);
+  const { pullLatestArtifact, workflowPhase } = useAgentStore();
+  const active = workflowPhase !== "IDLE";
 
-  // Auto-open review modal when approval needed
-  useEffect(() => {
-    if (workflowPhase === "AWAITING_APPROVAL") {
-      const timer = setTimeout(() => setReviewOpen(true), 800);
-      return () => clearTimeout(timer);
-    }
-  }, [workflowPhase]);
+  const handlePull = async () => {
+    setIsPulling(true);
+    await pullLatestArtifact();
+    setIsPulling(false);
+  };
 
   return (
-    <div className="relative w-screen h-screen flex flex-col overflow-hidden bg-black">
+    <motion.button
+      whileHover={active ? { scale: 1.04 } : {}}
+      whileTap={active ? { scale: 0.96 } : {}}
+      onClick={active ? handlePull : undefined}
+      disabled={isPulling}
+      className="flex items-center gap-2 px-4 py-1.5 rounded font-mono text-[9px] font-bold uppercase tracking-[0.18em] transition-all disabled:cursor-wait"
+      style={{
+        border: active ? "1px solid rgba(0,240,255,0.4)" : "1px solid rgba(255,255,255,0.07)",
+        background: active ? "rgba(0,240,255,0.06)" : "rgba(255,255,255,0.03)",
+        color: active ? "#00f0ff" : "rgba(255,255,255,0.2)",
+        boxShadow: active ? "0 0 12px rgba(0,240,255,0.08)" : "none",
+        cursor: active ? "pointer" : "default",
+      }}
+      onMouseEnter={(e) => {
+        if (!active) return;
+        (e.currentTarget as HTMLButtonElement).style.background = "rgba(0,240,255,0.13)";
+        (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 0 20px rgba(0,240,255,0.22)";
+      }}
+      onMouseLeave={(e) => {
+        (e.currentTarget as HTMLButtonElement).style.background = active ? "rgba(0,240,255,0.06)" : "rgba(255,255,255,0.03)";
+        (e.currentTarget as HTMLButtonElement).style.boxShadow = active ? "0 0 12px rgba(0,240,255,0.08)" : "none";
+      }}
+    >
+      {isPulling ? <Loader2 size={10} className="animate-spin" /> : <Download size={10} />}
+      {isPulling ? "PULLING..." : "PULL LATEST INTEL"}
+    </motion.button>
+  );
+}
+
+export default function Home() {
+  const ctoStatus = useAgentStore((s) => s.agents.cto.status);
+  const ctoActive = ctoStatus === "ACTIVE" || ctoStatus === "THINKING";
+
+  return (
+    <div className="relative w-screen h-screen flex flex-col overflow-hidden" style={{ background: "#090e1a" }}>
       <BackgroundGrid />
       <SystemAlerts />
       {/* ── Fixed Top-Right Authorization Gate ── */}
-      <AuthGateWidget onOpen={() => setReviewOpen(true)} />
+      <AuthGateWidget />
 
       {/* ── Top Status Bar ── */}
       <header className="relative z-20 flex items-center justify-between px-6 py-2 border-b border-white/5 bg-black/40 backdrop-blur-md shrink-0">
@@ -153,8 +185,8 @@ export default function Home() {
           <WorkflowBadge />
         </div>
 
-        {/* Center placeholder — gate is fixed top-right */}
-        <div />
+        {/* Center: PULL LATEST INTEL */}
+        <PullIntelButton />
 
         <div className="flex items-center gap-5 text-[9px] font-mono text-white/30">
           <div className="flex items-center gap-1.5"><Activity size={10} className="text-neon-green" /><span>9 AGENTS</span></div>
@@ -176,14 +208,22 @@ export default function Home() {
           </div>
         </section>
 
-        {/* CENTER: 3D Constellation */}
+        {/* CENTER: 3D Constellation + overlays */}
         <section className="flex-1 min-w-0 relative">
           <ConstellationGraph />
+          {/* CTO Blueprint — CTO aktifken constellation üzerinde görünür (z-15) */}
+          {ctoActive && (
+            <div className="absolute inset-0 z-[15]">
+              <ArtifactsPanel />
+            </div>
+          )}
+          {/* Artifact Review — AWAITING_APPROVAL fazında en üstte (z-20) */}
+          <ArtifactViewer />
         </section>
 
         {/* RIGHT PANEL: Signal Inbox / HITL */}
         <section className="w-[300px] shrink-0">
-          <SignalInbox onOpenReview={() => setReviewOpen(true)} />
+          <SignalInbox onOpenReview={() => { }} />
         </section>
       </main>
 
@@ -195,12 +235,6 @@ export default function Home() {
           <span>NODE: EU-CENTRAL-1 • UPTIME: 99.97% • SESSION: ACTIVE</span>
         </div>
       </footer>
-
-      {/* ── HITL Review Modal ── */}
-      <GlassModal
-        isOpen={reviewOpen && workflowPhase === "AWAITING_APPROVAL"}
-        onClose={() => setReviewOpen(false)}
-      />
     </div>
   );
 }

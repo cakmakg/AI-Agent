@@ -60,9 +60,7 @@ export async function orchestratorNode(state) {
     - An Kanal gesendet: ${state.isPublished ? "JA" : "NEIN"}
 
     STRIKTE ROUTING-REGELN (Gehen Sie diese von oben nach unten durch!):
-    
-    STRIKTE ROUTING-REGELN (Gehen Sie diese von oben nach unten durch!):
-    
+
     // 🔬 ROUTE 0: AR-GE / İNOVASYON DEPARTMANI (R&D Track)
     Regel 0.1: Wenn die Aufgabe das Wort "INNOVATION_RADAR" enthält UND Scraping-Daten "NEIN" sind -> wähle "scraper". (Zuerst News suchen!)
     Regel 0.2: Wenn die Aufgabe das Wort "INNOVATION_RADAR" enthält UND Scraping-Daten "JA" sind UND Autorentext "NEIN" ist -> wähle "architect". (Dann Blueprint aus den News machen!)

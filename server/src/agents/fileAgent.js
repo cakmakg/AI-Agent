@@ -1,30 +1,26 @@
-import fs from 'fs/promises';
-import path from 'path';
+import { Report } from "../models/Report.js";
 
-export async function fileNode(state) {
-    console.log("💾 Dosya Ajanı (Ajan 4) devrede. İçerik diske kaydediliyor...");
+export async function fileNode(state, config) {
+    const threadId = config?.configurable?.thread_id;
+    console.log(`💾 Dosya Ajanı (Ajan 4) devrede. İçerik MongoDB'ye kaydediliyor... (threadId: ${threadId})`);
 
     try {
-        // Proje ana dizininde 'output' adında bir klasör yolu belirliyoruz
-        const outputDir = "output";
-        
-        // Klasör yoksa Node.js bizim için otomatik oluşturacak
-        await fs.mkdir(outputDir, { recursive: true });
+        await Report.findOneAndUpdate(
+            { threadId },
+            {
+                threadId,
+                task: state.task,
+                content: state.finalContent,
+                status: "AWAITING_APPROVAL",
+            },
+            { upsert: true, new: true }
+        );
 
-        // Dosya çakışmasını önlemek için ismin sonuna zaman damgası (timestamp) ekliyoruz
-        const fileName = `strateji_raporu_${Date.now()}.md`;
-        const filePath = path.join(outputDir, fileName);
-
-        // Ajan 3'ün ürettiği 'finalContent'i Markdown (.md) dosyası olarak kaydediyoruz
-        await fs.writeFile(filePath, state.finalContent, 'utf-8');
-
-        console.log(`✅ Dosya Ajanı: Şaheser başarıyla '${filePath}' konumuna kaydedildi!`);
-
-        // Sisteme (Şefe) dosyanın başarıyla kaydedildiğini bildiriyoruz
+        console.log(`✅ Dosya Ajanı: İçerik MongoDB'ye kaydedildi (threadId: ${threadId})`);
         return { fileSaved: true };
 
     } catch (error) {
-        console.error(`❌ Dosya Ajanı Hatası: Kayıt yapılamadı! Detay: ${error.message}`);
+        console.error(`❌ Dosya Ajanı Hatası: MongoDB kaydı başarısız! Detay: ${error.message}`);
         return { fileSaved: false };
     }
 }

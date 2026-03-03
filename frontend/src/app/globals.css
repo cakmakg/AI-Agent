@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 @theme inline {
-  --color-background: #000000;
-  --color-foreground: #e0e0e0;
+  --color-background: #090e1a;
+  --color-foreground: #d0dff0;
 
   --color-neon-blue: #00f0ff;
   --color-neon-green: #39ff14;
@@ -15,8 +15,8 @@
 }
 
 :root {
-  --background: #000000;
-  --foreground: #e0e0e0;
+  --background: #090e1a;
+  --foreground: #d0dff0;
 }
 
 * {
@@ -36,13 +36,13 @@ body {
 
 /* ── Glass Panels ── */
 @utility glass-panel {
-  background: rgba(5, 10, 15, 0.65);
-  backdrop-filter: blur(16px) saturate(1.2);
-  -webkit-backdrop-filter: blur(16px) saturate(1.2);
-  border: 1px solid rgba(0, 240, 255, 0.08);
+  background: rgba(15, 24, 48, 0.55);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  border: 1px solid rgba(0, 240, 255, 0.14);
   box-shadow:
-    0 0 1px rgba(0, 240, 255, 0.2),
-    inset 0 0 30px rgba(0, 0, 0, 0.4);
+    0 0 1px rgba(0, 240, 255, 0.25),
+    inset 0 0 20px rgba(0, 180, 255, 0.04);
 }
 
 /* ── Neon Text Utilities ── */

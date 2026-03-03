@@ -2,8 +2,8 @@ import { ChatBedrockConverse } from "@langchain/aws";
 
 // Ajan 2'nin Beyni (Yine Claude veya ileride değiştirebileceğimiz bir model)
 const llm = new ChatBedrockConverse({
-    model: "anthropic.claude-3-haiku-20240307-v1:0", // Şef kadar zeki olmasına gerek yok, Haiku yeterli
-    region: process.env.AWS_DEFAULT_REGION,
+    model: "eu.anthropic.claude-haiku-3-5-20251001-v1:0",
+    region: process.env.AWS_REGION,
     credentials: {
         accessKeyId: process.env.AWS_ACCESS_KEY_ID,
         secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,

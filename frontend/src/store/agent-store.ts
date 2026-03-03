@@ -80,6 +80,7 @@ interface AgentStore {
     approveMission: (feedback?: string) => Promise<void>;
     rejectMission: (feedback: string) => Promise<void>;
     forceRdScan: () => Promise<void>;
+    pullLatestArtifact: () => Promise<void>;
 }
 
 const getTimestamp = (): string => {
@@ -378,27 +379,151 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
         }
     },
 
+    // ── Pull Latest Intel from MongoDB ──
+    pullLatestArtifact: async () => {
+        const { threadId, addLog, addAlert } = get();
+        const url = threadId ? `/api/artifact/${threadId}` : `/api/artifact/latest`;
+        try {
+            const res = await fetch(url);
+            if (res.status === 404) {
+                addAlert({ message: "NO PENDING INTEL — System is still processing", type: "warning" });
+                addLog({ timestamp: getTimestamp(), agent: "SYSTEM", message: "Intel pull: no pending reports found in MongoDB.", level: "WARN" });
+                return;
+            }
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+            if (!data.success) throw new Error(data.error || "Pull failed");
+            // Update store with fetched artifact
+            set({
+                pendingContent: data.content,
+                workflowPhase: "AWAITING_APPROVAL",
+                ...(data.threadId && !threadId ? { threadId: data.threadId } : {}),
+            });
+            addLog({ timestamp: getTimestamp(), agent: "SYSTEM", message: `Intel acquired from MongoDB — task: "${String(data.task ?? "").slice(0, 60)}..."`, level: "SUCCESS" });
+            addAlert({ message: "INTEL ACQUIRED — ARTIFACT LOADED FROM DATABASE", type: "success" });
+        } catch (error) {
+            const errMsg = error instanceof Error ? error.message : "Pull failed";
+            addLog({ timestamp: getTimestamp(), agent: "SYSTEM", message: `Intel pull failed: ${errMsg}`, level: "ERROR" });
+            addAlert({ message: `INTEL PULL FAILED: ${errMsg}`, type: "error" });
+        }
+    },
+
     // ── Force R&D Scan ──
     forceRdScan: async () => {
-        const { addLog, setAgentStatus, setActiveAgent, addAlert } = get();
+        const { addLog, setAgentStatus, setActiveAgent, setWorkflowPhase, addAlert } = get();
+
+        // Guard: aktif bir workflow varsa başlatma
+        if (get().workflowPhase !== "IDLE") {
+            addAlert({ message: "WORKFLOW ACTIVE — R&D scan queued after completion", type: "warning" });
+            return;
+        }
 
         setAgentStatus("radar", "ACTIVE");
         setActiveAgent("radar");
-        addLog({ timestamp: getTimestamp(), agent: "RADAR", message: "FORCE R&D SCAN initiated by operator.", level: "WARN" });
-        addAlert({ message: "SYSTEM WAKE: R&D PROTOCOL INITIATED", type: "warning" });
+        set({ workflowPhase: "RUNNING" });
+        addLog({ timestamp: getTimestamp(), agent: "RADAR", message: "INNOVATION RADAR initiated — scanning Anthropic & OpenAI feeds...", level: "WARN" });
+        addAlert({ message: "R&D PROTOCOL ACTIVATED — SCANNING AI LANDSCAPE", type: "warning" });
 
         try {
-            await fetch("/api/inbox", {
+            const res = await fetch("/api/rnd", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ message: "Proactive R&D Scan: Analyze latest AI developments from Anthropic, OpenAI, and Google." }),
             });
 
-            addLog({ timestamp: getTimestamp(), agent: "RADAR", message: "R&D scan dispatched to backend.", level: "SUCCESS" });
-            setAgentStatus("radar", "SUCCESS");
-        } catch {
+            const data = await res.json();
+
+            if (!data.success || data.status !== "PROCESSING" || !data.threadId) {
+                throw new Error(data.error || "Unexpected R&D response");
+            }
+
+            set({ threadId: data.threadId });
+            addLog({ timestamp: getTimestamp(), agent: "RADAR", message: `R&D workflow started — threadId: ${data.threadId}`, level: "INFO" });
+
+            // ── SSE: HOT_LEAD akışıyla aynı pattern ──
+            let previousAgent: AgentId | null = "radar";
+            const agentLabels: Record<string, string> = {
+                ceo: "Orchestrator routing R&D mission...",
+                scraper: "Tapping into Anthropic & OpenAI news feeds...",
+                analyst: "Processing AI landscape data...",
+                writer: "Composing innovation summary...",
+                qa: "Quality check on R&D output...",
+                cto: "Generating integration blueprint...",
+                hitl: "R&D blueprint ready — awaiting authorization.",
+                publisher: "Dispatching R&D report...",
+                radar: "INNOVATION_RADAR active — live feed connected.",
+            };
+
+            const eventSource = new EventSource(`/api/events/${data.threadId}`);
+
+            eventSource.onmessage = (e: MessageEvent) => {
+                const event = JSON.parse(e.data) as {
+                    type: string;
+                    agent?: string;
+                    status?: string;
+                    pendingContent?: string;
+                    message?: string;
+                };
+
+                if (event.type === "agent_active" && event.agent) {
+                    const agentId = event.agent as AgentId;
+                    if (previousAgent && previousAgent !== agentId && previousAgent !== "radar") {
+                        get().setAgentStatus(previousAgent, "SUCCESS");
+                    }
+                    get().setAgentStatus(agentId, "ACTIVE");
+                    get().setActiveAgent(agentId);
+                    addLog({
+                        timestamp: getTimestamp(),
+                        agent: agentId.toUpperCase(),
+                        message: agentLabels[agentId] ?? "R&D agent activated",
+                        level: "INFO",
+                    });
+                    previousAgent = agentId;
+                }
+
+                if (event.type === "workflow_complete") {
+                    eventSource.close();
+                    if (event.status === "AWAITING_HUMAN_APPROVAL") {
+                        if (previousAgent && previousAgent !== "radar") {
+                            get().setAgentStatus(previousAgent, "SUCCESS");
+                        }
+                        set({
+                            pendingContent: event.pendingContent || "No R&D content available.",
+                            workflowPhase: "AWAITING_APPROVAL",
+                        });
+                        get().setAgentStatus("hitl", "ACTIVE");
+                        get().setActiveAgent("hitl");
+                        get().setAgentStatus("radar", "SUCCESS");
+                        addLog({ timestamp: getTimestamp(), agent: "RADAR", message: "R&D SCAN COMPLETE — Innovation blueprint ready for authorization.", level: "SUCCESS" });
+                        addAlert({ message: "R&D COMPLETE — BLUEPRINT AWAITING YOUR AUTHORIZATION", type: "success" });
+                    }
+                }
+
+                if (event.type === "error") {
+                    eventSource.close();
+                    get().setAgentStatus("radar", "ERROR");
+                    setWorkflowPhase("IDLE");
+                    setActiveAgent(null);
+                    addLog({ timestamp: getTimestamp(), agent: "RADAR", message: `R&D ERROR: ${event.message}`, level: "ERROR" });
+                    addAlert({ message: `R&D SCAN FAILED: ${event.message}`, type: "error" });
+                }
+            };
+
+            eventSource.onerror = () => {
+                eventSource.close();
+                get().setAgentStatus("radar", "ERROR");
+                setWorkflowPhase("IDLE");
+                setActiveAgent(null);
+                addLog({ timestamp: getTimestamp(), agent: "RADAR", message: "R&D SSE connection lost.", level: "ERROR" });
+                addAlert({ message: "R&D SSE LOST — Check backend", type: "error" });
+            };
+
+        } catch (error) {
             setAgentStatus("radar", "ERROR");
-            addLog({ timestamp: getTimestamp(), agent: "RADAR", message: "R&D scan failed — backend unreachable.", level: "ERROR" });
+            setWorkflowPhase("IDLE");
+            setActiveAgent(null);
+            const errMsg = error instanceof Error ? error.message : "R&D scan failed";
+            addLog({ timestamp: getTimestamp(), agent: "RADAR", message: `R&D FAILED: ${errMsg}`, level: "ERROR" });
+            addAlert({ message: `R&D SCAN FAILED: ${errMsg}`, type: "error" });
         }
     },
 }));

@@ -42,6 +42,8 @@ const AGENT_UI_MAP = {
     architect: "cto",
 };
 
+import { Report } from "./models/Report.js";
+
 // Ajanları İçeri Aktarıyoruz
 import { orchestratorNode } from "./agents/orchestrator.js";
 import { scraperNode } from "./agents/scraperAgent.js";
@@ -54,7 +56,7 @@ import { processIncomingMessage } from "./agents/customerBotAgent.js";
 import { architectNode } from "./agents/architectAgent.js";
 
 // 🎯 Yargıç Gölge Düğümü
-const humanNode = (state) => {
+const humanNode = () => {
     console.log("👨‍⚖️ Yargıç kararı bekleniyor... Sistem uykuya geçiyor.");
     return {};
 };
@@ -168,6 +170,38 @@ server.get("/api/events/:threadId", (req, res) => {
     req.on("close", () => agentEventBus.removeListener(threadId, listener));
 });
 
+// 🚪 KAPI 0.5a: En Son Bekleyen Raporu Çek (threadId bilmeden)
+server.get("/api/artifact/latest", async (req, res) => {
+    try {
+        const report = await Report.findOne({ status: "AWAITING_APPROVAL" }).sort({ createdAt: -1 });
+        if (!report) return res.status(404).json({ success: false, error: "No pending reports found." });
+        res.json({ success: true, content: report.content, status: report.status, task: report.task, threadId: report.threadId });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// 🚪 KAPI 0.5b: ThreadId ile Belirli Raporu Çek
+server.get("/api/artifact/:threadId", async (req, res) => {
+    try {
+        const report = await Report.findOne({ threadId: req.params.threadId });
+        if (!report) return res.status(404).json({ error: "Report not found." });
+        res.json({ success: true, content: report.content, status: report.status, task: report.task, threadId: report.threadId });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// 🚪 KAPI 0.7: Ar-Ge Radarı — Doğrudan INNOVATION_RADAR Tetikleyici
+server.post("/api/rnd", (req, res) => {
+    const threadId = "RND-" + uuidv4();
+    const rndTask = "INNOVATION_RADAR: Recherchiere die allerneuesten Updates von Anthropic (Claude) und OpenAI für Entwickler von heute. Erstelle basierend auf diesen neuen Technologien einen Master Blueprint (.md), der erklärt, wie wir diese neuen KI-Features in unsere bestehende Architektur integrieren können.";
+    runHotLeadWorkflow(threadId, rndTask).catch((err) =>
+        console.error("❌ R&D API Hatası:", err.message)
+    );
+    return res.json({ success: true, status: "PROCESSING", threadId, source: "RND_TRIGGER" });
+});
+
 // 🚪 KAPI 1: Manuel Görev Verme
 server.post("/api/analyze", async (req, res) => {
     try {
@@ -209,7 +243,9 @@ server.post("/api/inbox", async (req, res) => {
         if (leadAnalysis.category === "HOT_LEAD") {
             const threadId = uuidv4();
             // Workflow'u fire-and-forget olarak başlat (await etme)
-            runHotLeadWorkflow(threadId, leadAnalysis.orchestratorTask);
+            runHotLeadWorkflow(threadId, leadAnalysis.orchestratorTask).catch((err) =>
+                console.error("❌ HOT_LEAD workflow başlatma hatası:", err.message)
+            );
             // threadId'yi hemen dön; ajanların durumu SSE üzerinden akar
             return res.json({ success: true, status: "PROCESSING", threadId });
         }
@@ -241,7 +277,14 @@ server.post("/api/approve", async (req, res) => {
             humanFeedback: feedback || (isApproved ? "Onaylandı." : "Yeniden yaz.")
         });
 
-        await app.invoke(null, config); 
+        await app.invoke(null, config);
+
+        // MongoDB'deki raporu güncelle
+        await Report.findOneAndUpdate(
+            { threadId },
+            { status: isApproved ? "PUBLISHED" : "REJECTED", humanFeedback: feedback || "" }
+        );
+
         return res.json({ success: true, status: isApproved ? "PUBLISHED" : "REVISED" });
 
     } catch (error) {
@@ -254,33 +297,18 @@ server.listen(PORT, () => {
     console.log(`📡 Port: http://localhost:${PORT}`);
 });
 // ==========================================
-// 🔬 SPRINT 5: AR-GE (R&D) DEPARTMANI CRON JOB
+// 🔬 AR-GE (R&D) DEPARTMANI — PROAKTİF MOTOR
 // ==========================================
-// Normalde "0 8 * * *" ile her sabah 08:00'de çalışır.
-// Ancak bizim testi canlı görebilmemiz için "*/2 * * * *" (Her 2 dakikada bir) olarak ayarladık.
-cron.schedule("*/2 * * * *", async () => {
-    console.log("\n⏰ [AR-GE ALARMI ÇALDI] Teknoloji Radarı uyandı!");
+// Üretim: "0 8 * * *"  → Her sabah 08:00'de çalışır
+// Test   : "*/2 * * * *" → Her 2 dakikada bir çalışır
+cron.schedule("0 8 * * *", () => {
+    const threadId = "RND-" + Date.now();
+    console.log(`\n⏰ [AR-GE ALARMI ÇALDI] Teknoloji Radarı uyandı! threadId: ${threadId}`);
     console.log("🕵️‍♂️ İnternetteki en yeni yapay zeka gelişmeleri taranıyor...\n");
 
-    const threadId = "RND-" + Date.now();
-    const config = { configurable: { thread_id: threadId } };
-    
-    // Şef'e gönderilecek gizli Ar-Ge görevi (Prompt)
     const rndTask = "INNOVATION_RADAR: Recherchiere die allerneuesten Updates von Anthropic (Claude) und OpenAI für Entwickler von heute. Erstelle basierend auf diesen neuen Technologien einen Master Blueprint (.md), der erklärt, wie wir diese neuen KI-Features in unsere bestehende Architektur integrieren können.";
 
-    try {
-        // Not: Eğer LangGraph'ı derlediğin değişkenin adı "app" ise app.invoke() kullan.
-        // Eğer farklı bir isimde derlediysen (örn: const myGraph = workflow.compile()), myGraph.invoke() yap.
-        // Genelde index.js içinde "app" olarak tanımlanır.
-        await app.invoke({
-            task: rndTask,
-            revisionCount: 0,
-            fileSaved: false,
-            humanApproval: null,
-            isPublished: false
-        }, config);
-        
-    } catch (error) {
-        console.error("❌ Ar-Ge departmanı çalışırken bir hata oluştu:", error);
-    }
+    runHotLeadWorkflow(threadId, rndTask).catch((err) =>
+        console.error("❌ R&D Cron Hatası:", err.message)
+    );
 });
