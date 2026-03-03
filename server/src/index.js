@@ -65,6 +65,8 @@ const humanNode = () => {
 // 🔄 HOT_LEAD workflow'unu arka planda çalıştır ve SSE ile olayları yay
 async function runHotLeadWorkflow(threadId, task) {
     const config = { configurable: { thread_id: threadId }, recursionLimit: 100 };
+    let interruptDetected = false;
+
     try {
         for await (const chunk of await app.stream({ task }, config)) {
             const nodeName = Object.keys(chunk)[0];
@@ -73,22 +75,29 @@ async function runHotLeadWorkflow(threadId, task) {
             if (agentId) {
                 emitToThread(threadId, { type: "agent_active", agent: agentId });
             }
-            // __interrupt__ chunk gelince stream burada durur
             if (nodeName === "__interrupt__") {
-                console.log(`   🛑 INTERRUPT detected — fetching pendingContent…`);
+                console.log(`   🛑 INTERRUPT detected — breaking stream loop`);
+                interruptDetected = true;
                 break;
             }
         }
 
+        // --- Durum kontrolü ---
         const currentState = await app.getState(config);
-        const awaitingHITL = currentState.next.includes("human_approval")
-            || (currentState.next.length === 0 && currentState.tasks?.some(t => t.interrupts?.length > 0));
+        console.log(`   🔍 getState → next: [${currentState.next.join(", ")}], tasks: ${currentState.tasks?.length ?? 0}`);
+
+        const awaitingHITL =
+            interruptDetected ||
+            currentState.next.includes("human_approval") ||
+            currentState.next.length === 0 ||           // Interrupt sonrası next=[] olabilir
+            currentState.tasks?.some(t => t.interrupts?.length > 0);
+
+        console.log(`   🔍 awaitingHITL = ${awaitingHITL}`);
 
         if (awaitingHITL) {
-            // 1) State'den al
-            let pendingContent = currentState.values.finalContent || "";
+            let pendingContent = currentState.values?.finalContent || "";
 
-            // 2) Boşsa MongoDB'den çek (CTO blueprint akışları için)
+            // MongoDB fallback (CTO/architect blueprint akışları)
             if (!pendingContent) {
                 try {
                     const report = await Report.findOne({ threadId }).sort({ createdAt: -1 });
@@ -101,11 +110,13 @@ async function runHotLeadWorkflow(threadId, task) {
                 }
             }
 
-            // 3) Hâlâ boşsa blueprintContent'i dene
+            // Son çare: state'deki diğer alanlara bak
             if (!pendingContent) {
-                pendingContent = currentState.values.blueprintContent
-                    || currentState.values.blueprint
-                    || "*(İçerik hazır — MongoDB'den yükleyin)*";
+                pendingContent =
+                    currentState.values?.blueprintContent ||
+                    currentState.values?.blueprint ||
+                    currentState.values?.draftReport ||
+                    "*(Rapor hazır — 'Pull Latest Intel' butonuna tıklayın)*";
             }
 
             emitToThread(threadId, {
@@ -114,6 +125,8 @@ async function runHotLeadWorkflow(threadId, task) {
                 pendingContent,
             });
             console.log(`   ✅ workflow_complete emitted (${pendingContent.length} chars)`);
+        } else {
+            console.log(`   ℹ️ Workflow tamamlandı (HITL değil)`);
         }
     } catch (err) {
         console.error("❌ runHotLeadWorkflow hatası:", err.message);

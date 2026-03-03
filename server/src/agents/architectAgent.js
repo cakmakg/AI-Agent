@@ -25,7 +25,7 @@ const llmWithStructuredOutput = llm.withStructuredOutput(blueprintSchema, { name
 export async function architectNode(state) {
     console.log("👨‍🏫 Baş Mimar (Ajan 8 - CTO) masaya oturdu. Proje mimarisi çiziliyor...");
 
-   const prompt = `Sie sind der Chief Technology Officer (CTO) und Senior Software Architect (Ajan 8) für ein Elite-Entwicklungsteam.
+    const prompt = `Sie sind der Chief Technology Officer (CTO) und Senior Software Architect (Ajan 8) für ein Elite-Entwicklungsteam.
     Ihre Aufgabe ist es NICHT, den Code selbst zu schreiben. Ihre Aufgabe ist es, einen brillanten "Project Blueprint" (Master-Prompt) für autonome KI-Programmierwerkzeuge (wie Claude Code, Cursor oder Antigravity) zu erstellen.
     
     Kundenanforderung: ${state.task}
@@ -41,9 +41,9 @@ export async function architectNode(state) {
     6. **Strict Coding & Audit Guidelines:** Regeln zu Security, Error Handling, Clean Code und Performance. Wie soll die KI ihren eigenen Code überprüfen (Self-Correction)?
     
     Schreiben Sie den 'blueprintContent' so präzise und instruktiv wie möglich, als würden Sie Befehle an ein KI-Coding-Tool geben. (Sprache des Blueprints: Englisch für maximale Kompatibilität mit Coding-Tools).`;
-    
+
     const response = await llmWithStructuredOutput.invoke(prompt);
-    
+
     console.log(`   -> Mimari Karar: ${response.explanation}`);
     console.log(`   -> Proje Adı: ${response.projectName}`);
 
@@ -61,9 +61,9 @@ export async function architectNode(state) {
         // Dosya adını güvenli hale getir ve .md uzantısı ekle
         const safeFileName = response.projectName.replace(/[^a-z0-9]/gi, '_').toLowerCase() + "_blueprint.md";
         savedPath = path.join(outputDir, safeFileName);
-        
+
         fs.writeFileSync(savedPath, response.blueprintContent, "utf-8");
-        
+
         console.log(`✅ OTONOM MİMARİ BAŞARILI: ${safeFileName} diske yazıldı!`);
         isSuccess = true;
     } catch (error) {
@@ -71,8 +71,10 @@ export async function architectNode(state) {
     }
 
     return {
-        // Bu blueprint içeriğini hafızaya da alalım ki süreç devam edebilsin
-        finalContent: isSuccess ? `### Architektur-Blueprint Erfolgreich Erstellt!\n\n**Projekt:** ${response.projectName}\n**Architektur-Entscheidung:** ${response.explanation}\n\nDer Master-Prompt für die KI-Entwickler-Tools wurde lokal unter '${savedPath}' gespeichert. Sie können diese Datei nun an Claude Code oder Antigravity übergeben.` : "Fehler beim Erstellen des Blueprints.",
+        // Tam blueprint içeriğini state'e al — hem SSE hem MongoDB için
+        finalContent: isSuccess
+            ? `# 🏗️ Architektur-Blueprint: ${response.projectName}\n\n> **Architektur-Entscheidung:** ${response.explanation}\n\n---\n\n${response.blueprintContent}`
+            : `# ❌ Blueprint Fehler\n\n${response.explanation || "Fehler beim Erstellen des Blueprints."}`,
         fileSaved: isSuccess
     };
 }
