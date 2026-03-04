@@ -151,20 +151,35 @@ async function runHotLeadWorkflow(threadId, task) {
     }
 }
 // 📤 Publisher workflow’u — AUTHORIZE sonrası arka planda çalışır
+// 📤 Publisher workflow'u — AUTHORIZE sonrası arka planda çalışır
 async function runPublishWorkflow(threadId, feedbackNote) {
-    const config = { configurable: { thread_id: threadId }, recursionLimit: 100 };
     try {
         console.log(`   📤 Publisher başladı — threadId: ${threadId}`);
-        await app.invoke(null, config);
+
+        // MongoDB'den içeriği çek — graph state boş olabilir (orchestrator END'e gidebilir)
+        const report = await Report.findOne({ threadId });
+        const finalContent = report?.content || '';
+
+        if (!finalContent) {
+            console.warn(`   ⚠️ Publisher: MongoDB'de içerik yok (threadId: ${threadId}) — bildirim atlandı.`);
+        } else {
+            // publisherNode'u doğrudan çağır — graph routing bypass
+            const { publisherNode } = await import('./agents/publisherAgent.js');
+            await publisherNode({
+                finalContent,
+                task:          report?.task || '',
+                humanFeedback: feedbackNote || 'Onaylandı ✓',
+            });
+        }
+
         await Report.findOneAndUpdate(
             { threadId },
-            { status: "PUBLISHED", humanFeedback: feedbackNote || "" }
+            { status: 'PUBLISHED', humanFeedback: feedbackNote || '' }
         );
         console.log(`   ✅ PUBLISHED — threadId: ${threadId}`);
     } catch (err) {
-        console.error("❌ runPublishWorkflow hatası:", err.message);
-        // Yine de MongoDB'yi güncelle
-        await Report.findOneAndUpdate({ threadId }, { status: "PUBLISHED" }).catch(() => { });
+        console.error('❌ runPublishWorkflow hatası:', err.message);
+        await Report.findOneAndUpdate({ threadId }, { status: 'PUBLISHED' }).catch(() => { });
     }
 }
 
