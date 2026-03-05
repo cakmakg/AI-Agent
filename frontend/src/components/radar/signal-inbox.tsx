@@ -4,6 +4,7 @@ import React, { useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ShieldAlert, Crosshair, Radio, Zap } from "lucide-react";
 import { useAgentStore } from "@/store/agent-store";
+import { MissionHistory } from "@/components/radar/mission-history";
 
 // ── Types ──
 export interface Signal {
@@ -237,6 +238,9 @@ export const SignalInbox = ({ onOpenReview }: Props) => {
                     </AnimatePresence>
                 </div>
             </div>
+
+            {/* ── MIDDLE: Mission Archive Toggle ── */}
+            <MissionHistory />
 
             {/* ── BOTTOM: Conic Radar Display ── */}
             <div className="glass-panel w-full flex-1 rounded-md border border-neon-green/15 flex flex-col relative overflow-hidden min-h-0">

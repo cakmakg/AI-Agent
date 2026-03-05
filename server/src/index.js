@@ -454,6 +454,62 @@ server.post("/api/approve", async (req, res) => {
     }
 });
 
+
+// ==========================================
+// 📚 MISSION HISTORY API
+// ==========================================
+
+// GET /api/missions — son 50 gorevi listele (icerik ozeti ile)
+app.get("/api/missions", async (req, res) => {
+    try {
+        const page  = parseInt(req.query.page  || "1");
+        const limit = parseInt(req.query.limit || "50");
+        const status = req.query.status;  // opsiyonel filtre
+
+        const filter = status ? { status } : {};
+
+        const reports = await Report
+            .find(filter)
+            .sort({ createdAt: -1 })
+            .skip((page - 1) * limit)
+            .limit(limit)
+            .select("threadId task status createdAt humanFeedback content");
+
+        const missions = reports.map(r => ({
+            threadId:       r.threadId,
+            task:           r.task,
+            status:         r.status,
+            humanFeedback:  r.humanFeedback,
+            createdAt:      r.createdAt,
+            contentPreview: (r.content || "").slice(0, 220),
+        }));
+
+        const total = await Report.countDocuments(filter);
+        res.json({ missions, total, page, limit });
+    } catch (err) {
+        console.error("❌ /api/missions hatası:", err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// GET /api/missions/:threadId — tek mission tam icerik
+app.get("/api/missions/:threadId", async (req, res) => {
+    try {
+        const report = await Report.findOne({ threadId: req.params.threadId });
+        if (!report) return res.status(404).json({ error: "Mission not found" });
+        res.json({
+            threadId:      report.threadId,
+            task:          report.task,
+            status:        report.status,
+            humanFeedback: report.humanFeedback,
+            createdAt:     report.createdAt,
+            content:       report.content,
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 server.listen(PORT, () => {
     console.log(`\n🌐 AI Orkestra Sunucusu Çalışıyor!`);
     console.log(`📡 Port: http://localhost:${PORT}`);
@@ -462,7 +518,7 @@ server.listen(PORT, () => {
 // 🔬 AR-GE (R&D) DEPARTMANI — PROAKTİF MOTOR
 // ==========================================
 // ⚠️ TEST MODU — Test sonrası "0 8 * * *" ile değiştir!
-cron.schedule("*/2 * * * *", () => {
+cron.schedule("0 8 * * *", () => {
     const threadId = "RND-" + Date.now();
     console.log(`\n⏰ [AR-GE ALARMI ÇALDI] Teknoloji Radarı uyandı! threadId: ${threadId}`);
     console.log("🕵️‍♂️ İnternetteki en yeni yapay zeka gelişmeleri taranıyor...\n");

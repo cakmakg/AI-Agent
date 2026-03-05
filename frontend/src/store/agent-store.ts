@@ -47,6 +47,16 @@ export interface LogEntry {
     level: "INFO" | "WARN" | "ERROR" | "SUCCESS" | "CRITICAL";
 }
 
+export interface MissionSummary {
+    threadId: string;
+    task: string;
+    status: "AWAITING_APPROVAL" | "APPROVED" | "REJECTED" | "PUBLISHED";
+    humanFeedback: string;
+    createdAt: string;
+    contentPreview: string;
+    content?: string; // full content when selected
+}
+
 interface AgentStore {
     // ── Agent States ──
     agents: Record<AgentId, AgentState>;
@@ -66,6 +76,11 @@ interface AgentStore {
     // ── Cron ──
     cronSecondsLeft: number;
 
+    // ── Mission Archive ──
+    missions: MissionSummary[];
+    selectedMission: MissionSummary | null;
+    archiveOpen: boolean;
+
     // ── Actions ──
     setAgentStatus: (id: AgentId, status: AgentStatus) => void;
     setActiveAgent: (id: AgentId | null) => void;
@@ -82,6 +97,9 @@ interface AgentStore {
     rejectMission: (feedback: string) => Promise<void>;
     forceRdScan: () => Promise<void>;
     pullLatestArtifact: () => Promise<void>;
+    fetchMissions: () => Promise<void>;
+    selectMission: (threadId: string) => Promise<void>;
+    toggleArchive: () => void;
 }
 
 const getTimestamp = (): string => {
@@ -116,6 +134,9 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     logs: [],
     alerts: [],
     cronSecondsLeft: 120,
+    missions: [],
+    selectedMission: null,
+    archiveOpen: false,
 
     setAgentStatus: (id, status) =>
         set((state) => ({
@@ -593,4 +614,42 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
             addAlert({ message: `R&D SCAN FAILED: ${errMsg}`, type: "error" });
         }
     },
+
+    // ── Mission Archive ──
+    fetchMissions: async () => {
+        try {
+            const res = await fetch("http://localhost:3000/api/missions?limit=50");
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json() as { missions: import("./agent-store").MissionSummary[] };
+            set({ missions: data.missions ?? [] });
+        } catch (err) {
+            console.error("fetchMissions failed:", err);
+        }
+    },
+
+    selectMission: async (threadId: string) => {
+        try {
+            // First set from existing summary (instant update)
+            const existing = get().missions.find(m => m.threadId === threadId);
+            if (existing) set({ selectedMission: existing });
+
+            // Then fetch full content
+            const res = await fetch(`http://localhost:3000/api/missions/${threadId}`);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json() as import("./agent-store").MissionSummary & { content: string };
+            set({ selectedMission: { ...data } });
+        } catch (err) {
+            console.error("selectMission failed:", err);
+        }
+    },
+
+    toggleArchive: () => {
+        const isOpen = get().archiveOpen;
+        if (!isOpen) {
+            // Fetch missions when opening archive
+            get().fetchMissions();
+        }
+        set({ archiveOpen: !isOpen, selectedMission: null });
+    },
 }));
+
