@@ -1,0 +1,97 @@
+import cron from "node-cron";
+import { v4 as uuidv4 } from "uuid";
+import { fetchUnreadEmails, markAsRead } from "../services/gmailService.js";
+import { processIncomingMessage } from "../agents/customerBotAgent.js";
+import { SupportTicket } from "../models/SupportTicket.js";
+import { TenantConfig } from "../models/TenantConfig.js";
+import { runHotLeadWorkflow } from "../workflows/runner.js";
+
+async function pollGmailInbox() {
+    if (!process.env.GOOGLE_REFRESH_TOKEN) return;
+
+    console.log("\n📬 [GMAIL POLLER] Merkezi gelen kutusu kontrol ediliyor...");
+    try {
+        const emails = await fetchUnreadEmails();
+        if (emails.length === 0) {
+            console.log("   ✅ Yeni mail yok.");
+            return;
+        }
+        console.log(`   📩 ${emails.length} yeni mail bulundu.`);
+
+        for (const email of emails) {
+            const existing = await SupportTicket.findOne({ emailMessageId: email.messageId });
+            if (existing) {
+                await markAsRead(email.messageId);
+                continue;
+            }
+
+            const tagMatch = email.body.match(/\[CLIENT:([^\]]+)\]/i) || email.subject.match(/\[CLIENT:([^\]]+)\]/i);
+            const clientId = tagMatch ? tagMatch[1].trim() : (process.env.DEFAULT_CLIENT_ID || "default");
+
+            let tenantConfig = await TenantConfig.findOne({ clientId }).lean();
+            if (!tenantConfig && clientId !== "default") {
+                console.warn(`   ⚠️ [GMAIL] Gelen maildeki Client ID (${clientId}) bulunamadı. Default ayarlara düşülüyor.`);
+                tenantConfig = await TenantConfig.findOne({ clientId: "default" }).lean();
+            }
+
+            const fullMessage = `Konu: ${email.subject}\nGonderen: ${email.from}\n\n${email.body}`;
+            const analysis = await processIncomingMessage(fullMessage, clientId, tenantConfig);
+
+            console.log(`   🔍 ${email.from} → kategori: ${analysis.category} | tenant: ${clientId}`);
+
+            if (analysis.category === "SPAM" || analysis.category === "OTHER") {
+                await markAsRead(email.messageId);
+                console.log(`   🗑️  SPAM/OTHER — atlandi.`);
+                continue;
+            }
+
+            if (analysis.category === "SUPPORT_PRICING" || analysis.category === "SUPPORT_BUG") {
+                await SupportTicket.create({
+                    emailMessageId: email.messageId,
+                    gmailThreadId: email.gmailThreadId,
+                    clientId: clientId,
+                    from: email.from,
+                    subject: email.subject,
+                    body: email.body,
+                    category: analysis.category,
+                    draftResponse: analysis.draftResponse || "",
+                    status: "AWAITING_APPROVAL",
+                });
+                await markAsRead(email.messageId);
+                console.log(`   🎫 Ticket olusturuldu — ${email.from} (${analysis.category}) tenant: ${clientId}`);
+                continue;
+            }
+
+            if (analysis.category === "HOT_LEAD") {
+                const threadId = uuidv4();
+                runHotLeadWorkflow(threadId, analysis.orchestratorTask, tenantConfig).catch(err =>
+                    console.error("Gmail HOT_LEAD hatasi:", err.message)
+                );
+                await markAsRead(email.messageId);
+                console.log(`   🚀 HOT_LEAD workflow baslatildi — threadId: ${threadId} tenant: ${clientId}`);
+            }
+        }
+    } catch (err) {
+        console.error("❌ Gmail poller hatasi:", err.message);
+    }
+}
+
+export const startCronJobs = () => {
+    cron.schedule("0 8 * * *", () => {
+        const threadId = "RND-" + Date.now();
+        console.log(`\n⏰ [AR-GE ALARMI ÇALDI] Teknoloji Radarı uyandı! threadId: ${threadId}`);
+        console.log("🕵️‍♂️ İnternetteki en yeni yapay zeka gelişmeleri taranıyor...\n");
+
+        const rndTask = "INNOVATION_RADAR: Recherchiere die allerneuesten Updates von Anthropic (Claude) und OpenAI für Entwickler von heute. Erstelle basierend auf diesen neuen Technologien einen Master Blueprint (.md), der erklärt, wie wir diese neuen KI-Features in unsere bestehende Architektur integrieren können.";
+
+        runHotLeadWorkflow(threadId, rndTask).catch((err) =>
+            console.error("❌ R&D Cron Hatası:", err.message)
+        );
+    });
+
+    cron.schedule("*/5 * * * *", () => {
+        pollGmailInbox();
+    });
+
+    console.log("⏰ Cron jobs initialized.");
+};

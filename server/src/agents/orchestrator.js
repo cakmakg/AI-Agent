@@ -1,5 +1,7 @@
 import { ChatBedrockConverse } from "@langchain/aws";
 import { z } from "zod";
+import { trackLLMCostFromStrings } from "../services/costTracker.js";
+import { SKILL_REGISTRY, getEnabledTools } from "../skills/index.js";
 
 const llm = new ChatBedrockConverse({
     model: "eu.anthropic.claude-sonnet-4-5-20250929-v1:0",
@@ -11,21 +13,24 @@ const llm = new ChatBedrockConverse({
 });
 
 const routingSchema = z.object({
-   nextAgent: z.enum(["scraper", "analyzer", "writer", "critic", "fileSaver", "human_approval", "publisher", "architect", "END"])
-                .describe("Welcher Agent als Nächstes aufgerufen wird oder ob der Prozess beendet wird (END)."),
-   reason: z.string().describe("Eine kurze Erklärung auf Deutsch.")
+    nextAgent: z.enum(["scraper", "analyzer", "writer", "critic", "fileSaver", "human_approval", "publisher", "architect", "END"])
+        .describe("Welcher Agent als Nächstes aufgerufen wird oder ob der Prozess beendet wird (END)."),
+    reason: z.string().describe("Eine kurze Erklärung auf Deutsch.")
 });
 
-const llmWithStructuredOutput = llm.withStructuredOutput(routingSchema, { name: "route_task" });
+export async function orchestratorNode(state, config) {
+    const tenantConfig = config?.configurable?.tenantConfig;
+    const tools = getEnabledTools(tenantConfig);
+    const agentWithTools = tools.length > 0 ? llm.bindTools(tools) : llm;
+    const llmWithStructuredOutput = agentWithTools.withStructuredOutput(routingSchema, { name: "route_task" });
 
-export async function orchestratorNode(state) {
-    console.log(`👨‍💼 Orkestra Şefi (Ajan 7) düşünüyor... (Deneme Sayısı: ${state.revisionCount})`); 
+    console.log(`👨‍💼 Orkestra Şefi (Ajan 7) düşünüyor... (Deneme Sayısı: ${state.revisionCount}) [Aktif Araç Sayısı: ${tools.length}]`);
 
     // ==========================================
     // 🛑 1. SERT MÜHENDİSLİK FRENLERİ (Sonsuz Döngü Kırıcılar)
     // Bu kurallar LLM'den önce çalışır ve inatlaşmayı kesin olarak önler.
     // ==========================================
-    
+
     // FREN 1: Eğer CTO (Architect) planı yazıp kaydettiyse ve yargıç henüz bakmadıysa, doğrudan yargıca git!
     if (state.fileSaved && state.finalContent && state.finalContent.includes("Architektur-Blueprint") && state.humanApproval === null) {
         console.log("   -> ⚡ SİSTEM MÜDAHALESİ: Blueprint başarıyla diske yazıldı. Doğrudan Yargıca gidiliyor.");
@@ -64,6 +69,10 @@ export async function orchestratorNode(state) {
     // 🔬 ROUTE 0: AR-GE / İNOVASYON DEPARTMANI (R&D Track)
     Regel 0.1: Wenn die Aufgabe das Wort "INNOVATION_RADAR" enthält UND Scraping-Daten "NEIN" sind -> wähle "scraper". (Zuerst News suchen!)
     Regel 0.2: Wenn die Aufgabe das Wort "INNOVATION_RADAR" enthält UND Scraping-Daten "JA" sind UND Autorentext "NEIN" ist -> wähle "architect". (Dann Blueprint aus den News machen!)
+
+    // 📣 ROUTE 0.3: SOCIAL MEDIA / GROWTH DEPARTMANI (Twitter & LinkedIn Track)
+    Regel 0.3: Wenn die Aufgabe das Wort "TWITTER" oder "LINKEDIN" enthält UND Scraping-Daten "NEIN" sind -> wähle "scraper". (Erst aktuelle Daten für Social Media sammeln!)
+    Regel 0.4: Wenn die Aufgabe das Wort "TWITTER" oder "LINKEDIN" enthält UND Scraping-Daten "JA" sind UND Autorentext "NEIN" ist -> wähle "writer". (Direkt zum Writer! Kein Analyzer nötig für Social Media Content.)
     
     // 🎯 ROUTE 1: SOFTWARE & CODING (CTO-Track)
     Regel 1: WENN in der Aufgabe Wörter wie "Code", "Dashboard", "Software", "App", "Blueprint" oder "Next.js" vorkommen UND der Autorentext (Final Content) "NEIN" ist UND es KEIN "INNOVATION_RADAR" ist -> WÄHLEN SIE ZWINGEND "architect".
@@ -82,8 +91,11 @@ export async function orchestratorNode(state) {
     Regel 10: Wenn Datei gespeichert "JA" und Richter-Status "ABGELEHNT_MIT_FEEDBACK" -> wählen Sie "writer".
     Regel 11: Wenn Datei gespeichert "JA", Richter-Status "FREIGEGEBEN" und An Kanal gesendet "NEIN" -> wählen Sie "publisher".
     Regel 12: NUR WENN An Kanal gesendet "JA" ist -> wählen Sie "END".`;
-    
+
     const response = await llmWithStructuredOutput.invoke(prompt);
+
+    // 💰 CFO'ya maliyeti bildir
+    trackLLMCostFromStrings(prompt, JSON.stringify(response), "ORCHESTRATOR", state.threadId || "SYSTEM", config?.configurable?.tenantConfig?.clientId || "default").catch(() => { });
 
     console.log(`   -> Şefin Kararı: ${response.nextAgent}`);
     if (response.reason) console.log(`   -> Gerekçe: ${response.reason}\n`);

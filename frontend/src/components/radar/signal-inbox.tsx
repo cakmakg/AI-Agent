@@ -2,8 +2,8 @@
 
 import React, { useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ShieldAlert, Crosshair, Radio, Zap } from "lucide-react";
-import { useAgentStore } from "@/store/agent-store";
+import { ShieldAlert, Crosshair, Radio, Zap, Mail, CheckCircle, XCircle, Bug, DollarSign, Megaphone } from "lucide-react";
+import { useAgentStore, type SupportTicketSummary, type CampaignDraftSummary } from "@/store/agent-store";
 import { MissionHistory } from "@/components/radar/mission-history";
 
 // ── Types ──
@@ -159,10 +159,144 @@ const SignalCard = ({ signal, onOpenReview }: { signal: Signal; onOpenReview: ()
     );
 };
 
+// ── Support Ticket Card ──
+function SupportTicketCard({ ticket, onAction }: {
+    ticket: SupportTicketSummary;
+    onAction: (ticketId: string, isApproved: boolean) => void;
+}) {
+    const isBug = ticket.category === "SUPPORT_BUG";
+    const from = ticket.from.replace(/<.*>/, "").trim() || ticket.from;
+    const date = new Date(ticket.createdAt).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+
+    return (
+        <motion.div
+            layout
+            initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -12 }}
+            className={`rounded border p-2.5 flex flex-col gap-2 ${
+                isBug ? "border-alert-red/30 bg-alert-red/5" : "border-cyber-amber/30 bg-cyber-amber/5"
+            }`}
+        >
+            <div className="flex items-center justify-between gap-1">
+                <span className={`flex items-center gap-1 font-mono text-[8px] px-1.5 py-[1px] rounded border ${
+                    isBug ? "text-alert-red border-alert-red/40 bg-alert-red/8" : "text-cyber-amber border-cyber-amber/40 bg-cyber-amber/8"
+                }`}>
+                    {isBug ? <Bug size={7} /> : <DollarSign size={7} />}
+                    {isBug ? "BUG" : "PRICING"}
+                </span>
+                <span className="font-mono text-[7px] text-white/25">{date}</span>
+            </div>
+
+            <div className="flex flex-col gap-0.5">
+                <p className="font-mono text-[9px] text-white/60 truncate" title={ticket.from}>{from}</p>
+                <p className="font-mono text-[8px] text-white/40 line-clamp-1">{ticket.subject}</p>
+            </div>
+
+            {ticket.draftResponse && (
+                <p className="font-mono text-[7px] text-white/25 line-clamp-2 italic border-l border-white/10 pl-2">
+                    {ticket.draftResponse.slice(0, 120)}
+                </p>
+            )}
+
+            <div className="flex gap-1.5 pt-0.5">
+                <motion.button
+                    whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+                    onClick={() => onAction(ticket._id, true)}
+                    className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded border
+                        border-neon-green/40 bg-neon-green/8 text-neon-green font-mono text-[8px]
+                        hover:bg-neon-green/15 transition-all"
+                >
+                    <CheckCircle size={8} /> SEND
+                </motion.button>
+                <motion.button
+                    whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+                    onClick={() => onAction(ticket._id, false)}
+                    className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded border
+                        border-alert-red/40 bg-alert-red/8 text-alert-red font-mono text-[8px]
+                        hover:bg-alert-red/15 transition-all"
+                >
+                    <XCircle size={8} /> {isBug ? "ESCALATE" : "REJECT"}
+                </motion.button>
+            </div>
+        </motion.div>
+    );
+}
+
+// ── Campaign Card ──
+function CampaignCard({ campaign, onAction }: {
+    campaign: CampaignDraftSummary;
+    onAction: (id: string, approved: boolean) => void;
+}) {
+    const date = new Date(campaign.createdAt).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+    const preview = campaign.campaignContent.slice(0, 140);
+
+    return (
+        <motion.div
+            layout
+            initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -12 }}
+            className="rounded border border-[#ff6b35]/30 bg-[#ff6b35]/5 p-2.5 flex flex-col gap-2"
+        >
+            <div className="flex items-center justify-between gap-1">
+                <span className="flex items-center gap-1 font-mono text-[8px] px-1.5 py-[1px] rounded border
+                    text-[#ff6b35] border-[#ff6b35]/40 bg-[#ff6b35]/10">
+                    <Megaphone size={7} /> CAMPAIGN
+                </span>
+                <span className="font-mono text-[7px] text-white/25">{date}</span>
+            </div>
+
+            <p className="font-mono text-[9px] text-white/60 line-clamp-1" title={campaign.reportTitle}>
+                {campaign.reportTitle}
+            </p>
+
+            <p className="font-mono text-[7px] text-white/25 line-clamp-2 italic border-l border-[#ff6b35]/20 pl-2">
+                {preview}...
+            </p>
+
+            <div className="flex gap-1.5 pt-0.5">
+                <motion.button
+                    whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+                    onClick={() => onAction(campaign._id, true)}
+                    className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded border
+                        border-[#ff6b35]/40 bg-[#ff6b35]/10 text-[#ff6b35] font-mono text-[8px]
+                        hover:bg-[#ff6b35]/20 transition-all"
+                >
+                    <CheckCircle size={8} /> LAUNCH
+                </motion.button>
+                <motion.button
+                    whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+                    onClick={() => onAction(campaign._id, false)}
+                    className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded border
+                        border-alert-red/40 bg-alert-red/8 text-alert-red font-mono text-[8px]
+                        hover:bg-alert-red/15 transition-all"
+                >
+                    <XCircle size={8} /> REJECT
+                </motion.button>
+            </div>
+        </motion.div>
+    );
+}
+
 // ── Main Component ──
 export const SignalInbox = ({ onOpenReview }: Props) => {
-    const { workflowPhase, missionMessage } = useAgentStore();
+    const {
+        workflowPhase, missionMessage,
+        supportTickets, fetchSupportTickets, approveSupportTicket,
+        campaignDrafts, fetchCampaignDrafts, approveCampaign,
+    } = useAgentStore();
     const isAwaiting = workflowPhase === "AWAITING_APPROVAL";
+
+    // Poll support tickets every 30 seconds
+    useEffect(() => {
+        fetchSupportTickets();
+        const interval = setInterval(fetchSupportTickets, 30_000);
+        return () => clearInterval(interval);
+    }, [fetchSupportTickets]);
+
+    // Poll campaign drafts every 30 seconds
+    useEffect(() => {
+        fetchCampaignDrafts();
+        const interval = setInterval(fetchCampaignDrafts, 30_000);
+        return () => clearInterval(interval);
+    }, [fetchCampaignDrafts]);
     const isDelivered = workflowPhase === "DELIVERED";
     const isRunning = workflowPhase === "RUNNING" || workflowPhase === "DISPATCHING";
 
@@ -239,7 +373,62 @@ export const SignalInbox = ({ onOpenReview }: Props) => {
                 </div>
             </div>
 
-            {/* ── MIDDLE: Mission Archive Toggle ── */}
+            {/* ── MIDDLE: Support Email Tickets ── */}
+            {supportTickets.length > 0 && (
+                <div className="glass-panel w-full rounded-md border border-alert-red/20 flex flex-col shrink-0 overflow-hidden">
+                    <div className="flex items-center justify-between px-3 py-2 border-b border-white/5 shrink-0">
+                        <div className="flex items-center gap-2">
+                            <Mail size={11} className="text-alert-red animate-pulse" />
+                            <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-alert-red/80">
+                                Support Inbox
+                            </span>
+                        </div>
+                        <span className="font-mono text-[8px] bg-alert-red/15 border border-alert-red/30 text-alert-red px-1.5 py-[1px] rounded">
+                            {supportTickets.length}
+                        </span>
+                    </div>
+                    <div className="flex flex-col gap-2 p-2 max-h-[280px] overflow-y-auto"
+                        style={{ scrollbarWidth: "thin", scrollbarColor: "rgba(255,45,85,0.15) transparent" }}>
+                        <AnimatePresence>
+                            {supportTickets.map(t => (
+                                <SupportTicketCard
+                                    key={t._id}
+                                    ticket={t}
+                                    onAction={(id, approved) => approveSupportTicket(id, approved)}
+                                />
+                            ))}
+                        </AnimatePresence>
+                    </div>
+                </div>
+            )}
+
+            {/* ── CMO: Campaign Drafts ── */}
+            {campaignDrafts.length > 0 && (
+                <div className="glass-panel w-full rounded-md border border-[#ff6b35]/20 flex flex-col shrink-0 overflow-hidden">
+                    <div className="flex items-center justify-between px-3 py-2 border-b border-white/5 shrink-0">
+                        <div className="flex items-center gap-2">
+                            <Megaphone size={11} className="text-[#ff6b35] animate-pulse" />
+                            <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-[#ff6b35]/80">
+                                Growth Campaigns
+                            </span>
+                        </div>
+                        <span className="font-mono text-[8px] bg-[#ff6b35]/15 border border-[#ff6b35]/30 text-[#ff6b35] px-1.5 py-[1px] rounded">
+                            {campaignDrafts.length}
+                        </span>
+                    </div>
+                    <div className="flex flex-col gap-2 p-2 max-h-[280px] overflow-y-auto"
+                        style={{ scrollbarWidth: "thin", scrollbarColor: "rgba(255,107,53,0.15) transparent" }}>
+                        <AnimatePresence>
+                            {campaignDrafts.map(c => (
+                                <CampaignCard key={c._id} campaign={c}
+                                    onAction={(id, approved) => approveCampaign(id, approved)} />
+                            ))}
+                        </AnimatePresence>
+                    </div>
+                </div>
+            )}
+
+            {/* ── Mission Archive Toggle ── */}
             <MissionHistory />
 
             {/* ── BOTTOM: Conic Radar Display ── */}

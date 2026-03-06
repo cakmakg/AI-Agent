@@ -1,5 +1,6 @@
 import { ChatBedrockConverse } from "@langchain/aws";
 import { z } from "zod";
+import { trackLLMCostFromStrings } from "../services/costTracker.js";
 
 // Eleştirmen Ajan (Ajan 5) için daha zeki bir model kullanıyoruz (Sonnet veya Opus mantıklı olur)
 const llm = new ChatBedrockConverse({
@@ -45,6 +46,9 @@ export async function criticNode(state) {
 
     const response = await llmWithStructuredOutput.invoke(prompt);
 
+    // 💰 CFO: QA maliyeti kaydediliyor
+    trackLLMCostFromStrings(prompt, JSON.stringify(response), "CRITIC", state.threadId || "SYSTEM", config?.configurable?.tenantConfig?.clientId || "default").catch(() => { });
+
     if (response.isApproved) {
         console.log("✅ Eleştirmen: Metin KUSURSUZ! Onay verildi.");
     } else {
@@ -53,8 +57,8 @@ export async function criticNode(state) {
     }
 
     // Sistemin hafızasını Eleştirmenin kararıyla güncelliyoruz
-    return { 
-        isApproved: response.isApproved, 
-        criticFeedback: response.criticFeedback 
+    return {
+        isApproved: response.isApproved,
+        criticFeedback: response.criticFeedback
     };
 }

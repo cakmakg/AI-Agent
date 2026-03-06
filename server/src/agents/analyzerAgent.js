@@ -1,4 +1,5 @@
 import { ChatBedrockConverse } from "@langchain/aws";
+import { trackLLMCost } from "../services/costTracker.js";
 
 // Ajan 2'nin Beyni (Yine Claude veya ileride değiştirebileceğimiz bir model)
 const llm = new ChatBedrockConverse({
@@ -24,8 +25,16 @@ export async function analyzerNode(state) {
     // Bedrock'a bağlanıp analizi istiyoruz
     const response = await llm.invoke(prompt);
 
+    // 💰 CFO: Analyzer maliyetini kaydet
+    trackLLMCost(
+        response.usage_metadata?.input_tokens || 0,
+        response.usage_metadata?.output_tokens || 0,
+        "ANALYZER", state.threadId || "SYSTEM", config?.configurable?.tenantConfig?.clientId || "default",
+        "eu.anthropic.claude-haiku-3-5-20251001-v1:0"
+    ).catch(() => { });
+
     console.log("✅ Analiz Motoru: Rapor hazırlandı!");
-    
+
     // Çıkan sonucu sistem hafızasındaki (State) 'analysisReport' değişkenine kaydediyoruz
     return { analysisReport: response.content };
 }

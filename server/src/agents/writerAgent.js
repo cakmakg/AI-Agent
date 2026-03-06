@@ -1,8 +1,9 @@
 import { ChatBedrockConverse } from "@langchain/aws";
+import { trackLLMCost } from "../services/costTracker.js";
 
 // Ajan 3'ün Beyni (Kalite için Sonnet kullanıyoruz)
 const llm = new ChatBedrockConverse({
-    model: "eu.anthropic.claude-sonnet-4-5-20250929-v1:0", 
+    model: "eu.anthropic.claude-sonnet-4-5-20250929-v1:0",
     region: process.env.AWS_REGION,
     credentials: {
         accessKeyId: process.env.AWS_ACCESS_KEY_ID,
@@ -10,51 +11,135 @@ const llm = new ChatBedrockConverse({
     }
 });
 
-export async function writerNode(state) {
+export async function writerNode(state, config) {
+    const tenantConfig = config?.configurable?.tenantConfig;
+    const persona = tenantConfig?.agentPersona || "Sie sind ein erfahrener Senior IT Consultant und Pre-Sales Architect in Deutschland.";
+    const tone = tenantConfig?.tone || "professionelles B2B Business-Deutsch";
+
     let prompt = "";
 
-    // 🎯 YENİ: Hangi geri bildirimi kullanacağız? Yargıcınki mi, Eleştirmeninki mi?
+    // 🎯 Hangi geri bildirimi kullanacağız? Yargıcınki mi, Eleştirmeninki mi?
     const activeFeedback = state.humanFeedback || state.criticFeedback;
     const feedbackSource = state.humanFeedback ? "MENSCHLICHER RICHTER (Yargıç)" : "QUALITÄTSPRÜFER (Eleştirmen)";
+
+    // 📣 Social Media modu tespiti
+    const taskLower = (state.task || "").toLowerCase();
+    const isSocialMediaTask = taskLower.includes("twitter") || taskLower.includes("linkedin");
+    const isTwitterOnly = taskLower.includes("twitter") && !taskLower.includes("linkedin");
+    const isLinkedInOnly = taskLower.includes("linkedin") && !taskLower.includes("twitter");
 
     // EĞER BİR FIRÇA (GERİ BİLDİRİM) GELDİYSE:
     if (activeFeedback) {
         console.log(`✍️ İçerik Üretici (Ajan 3): ${feedbackSource} tarafından red yedik! Metin geri bildirime göre düzeltiliyor...`);
-        
-        prompt = `Sie sind ein erfahrener Senior IT Consultant und Pre-Sales Architect. 
-        Ihr vorheriger Entwurf eines IT-Consulting-Pitches wurde vom ${feedbackSource} abgelehnt.
-        
-        Hier ist das Feedback (Was Sie zwingend korrigieren müssen):
-        ---
-        ${activeFeedback}
-        ---
-        
-        Hier ist Ihr vorheriger Entwurf, der korrigiert werden muss:
-        ---
-        ${state.finalContent}
-        ---
-        
-        Bitte überarbeiten und korrigieren Sie den Text basierend auf dem Feedback.
-        
-        Regeln:
-        1. Setzen Sie das Feedback EXAKT um.
-        2. Verwenden Sie ein sehr professionelles B2B Business-Deutsch (außer das Feedback verlangt etwas anderes).
-        3. Behalten Sie die strukturierte IT-Consulting-Form bei (Management Summary, IST-Analyse, SOLL-Konzept, Roadmap).
-        4. Nutzen Sie Markdown-Formatierungen.
-        5. Geben Sie NUR den endgültigen, korrigierten Bericht aus. Keine Erklärungen.`;
 
-    } 
-    // EĞER İLK YAZIM AŞAMASIYSA (HENÜZ ELEŞTİRİ YOKSA):
+        if (isSocialMediaTask) {
+            prompt = `Du bist ein viraler Social-Media-Experte und CMO.
+            Dein vorheriger Social-Media-Entwurf wurde vom ${feedbackSource} abgelehnt.
+
+            Feedback (zwingend umsetzen):
+            ---
+            ${activeFeedback}
+            ---
+
+            Dein vorheriger Entwurf:
+            ---
+            ${state.finalContent}
+            ---
+
+            Überarbeite den Content basierend auf dem Feedback.
+            Behalte das Format (Twitter-Thread und/oder LinkedIn-Post mit Markdown) bei.
+            Gib NUR den finalen, korrigierten Content aus. Keine Erklärungen.`;
+        } else {
+            prompt = `${persona}
+            Ihr vorheriger Entwurf wurde vom ${feedbackSource} abgelehnt.
+
+            Hier ist das Feedback (Was Sie zwingend korrigieren müssen):
+            ---
+            ${activeFeedback}
+            ---
+
+            Hier ist Ihr vorheriger Entwurf, der korrigiert werden muss:
+            ---
+            ${state.finalContent}
+            ---
+
+            Bitte überarbeiten und korrigieren Sie den Text basierend auf dem Feedback.
+
+            Regeln:
+            1. Setzen Sie das Feedback EXAKT um.
+            2. Verwenden Sie ein ${tone} (außer das Feedback verlangt etwas anderes).
+            3. Behalten Sie die strukturierte Form bei.
+            4. Nutzen Sie Markdown-Formatierungen.
+            5. Geben Sie NUR den endgültigen, korrigierten Bericht aus. Keine Erklärungen.`;
+        }
+    }
+    // 📣 SOCIAL MEDIA MODU (TWITTER / LINKEDIN):
+    else if (isSocialMediaTask) {
+        const platform = isTwitterOnly ? "Twitter/X" : isLinkedInOnly ? "LinkedIn" : "Twitter/X und LinkedIn";
+        console.log(`✍️ İçerik Üretici (Ajan 3) devrede. ${platform} için viral Social Media içeriği oluşturuluyor...`);
+
+        prompt = `Du bist ein viraler Social-Media-Experte, Growth Hacker und CMO mit 10 Jahren Erfahrung.
+        Du erhältst aktuelle Recherche-Daten zu einem Thema. Deine Aufgabe ist es, daraus mitreißenden ${platform}-Content zu erstellen.
+
+        Thema/Aufgabe: "${state.task}"
+
+        Recherche-Daten:
+        ---
+        ${state.scrapedData || "Keine Recherche-Daten verfügbar. Nutze dein Wissen zum Thema."}
+        ---
+
+        ${isTwitterOnly ? `
+        Erstelle einen fesselnden Twitter/X-Thread:
+        REGELN:
+        1. Genau 5-7 Tweets im Thread.
+        2. Tweet 1 (Hook): Maximal 280 Zeichen. Muss sofort Aufmerksamkeit erregen – eine provokante Frage, schockierende Zahl oder steile These.
+        3. Tweet 2-6 (Body): Jeweils max. 280 Zeichen. Jeder Tweet = ein klarer Gedanke/Fakt. Nummerierung: "2/7", "3/7" etc.
+        4. Letzter Tweet (CTA): Abschluss mit einer Frage an die Community oder einem klaren Call-to-Action.
+        5. Nutze 2-3 relevante Hashtags nur im letzten Tweet.
+        6. Nutze passende Emojis sparsam (1-2 pro Tweet).
+        7. Keine Floskeln. Sei direkt, wertsteigernd, meinungsstark.
+        8. Format: Jeden Tweet mit "---" trennen.
+        ` : isLinkedInOnly ? `
+        Erstelle einen hochwertigen LinkedIn-Post:
+        REGELN:
+        1. Hook (erste Zeile): Maximal 2 Sätze, muss zum "mehr lesen" verführen.
+        2. Hauptteil: 150-250 Wörter. Strukturiert mit Leerzeilen. Nutze Bullet-Points (•) für Key Insights.
+        3. Schluss: 1-2 Sätze mit einer Reflexionsfrage oder Meinungsaufforderung.
+        4. Hashtags: 5-8 relevante Hashtags am Ende.
+        5. Ton: Professionell aber menschlich. Thought Leadership. Keine Werbung.
+        6. Nutze passende Emojis für visuelle Struktur (maximal 5).
+        ` : `
+        Erstelle BEIDE: Einen Twitter/X-Thread UND einen LinkedIn-Post.
+
+        ## 🐦 TWITTER/X THREAD:
+        - 5-7 Tweets, jeweils max. 280 Zeichen
+        - Tweet 1: starker Hook (Frage/Zahl/These)
+        - Tweets 2-6: je ein klarer Gedanke, nummeriert "2/7" etc.
+        - Letzter Tweet: CTA + 2-3 Hashtags
+        - Emojis sparsam (1-2 pro Tweet)
+        - Tweets mit "---" trennen
+
+        ## 💼 LINKEDIN POST:
+        - Hook: max. 2 Sätze
+        - Hauptteil: 150-250 Wörter mit Bullet-Points (•)
+        - Schluss: Reflexionsfrage
+        - 5-8 Hashtags
+        - Professioneller Ton, Thought Leadership
+        `}
+
+        Gib NUR den fertigen Content aus. Keine Einleitungen oder Erklärungen.
+        Verwende Markdown-Formatierung für Überschriften.`;
+    }
     else {
         console.log("✍️ İçerik Üretici (Ajan 3) devrede. Rapor ilk kez B2B IT formatında Almanca metne dökülüyor...");
-        
-        prompt = `Sie sind ein erfahrener Senior IT Consultant und Pre-Sales Architect in Deutschland. 
-        Unten finden Sie einen strategischen Bericht, der von unserem Datenanalysten erstellt wurde. 
-        Ihre Aufgabe ist es, diesen Bericht in ein hochprofessionelles, strukturiertes IT-Consulting-Angebot (B2B Pitch) im Markdown-Format (.md) umzuwandeln.
+
+        prompt = `${persona}
+        Unten finden Sie einen strategischen Bericht, der von unserem Datenanalysten erstellt wurde.
+        Ihre Aufgabe ist es, diesen Bericht umfassend und hochwertig zu formatieren.
 
         Regeln:
-        1. Verwenden Sie ein sehr professionelles B2B Business-Deutsch (formelle Anrede "Sie").
-        2. Strukturieren Sie den Bericht zwingend wie folgt (typischer deutscher IT-Consulting-Standard):
+        1. Verwenden Sie ein ${tone}.
+        2. Strukturieren Sie den Bericht logisch und professionell mit Abschnitten wie:
            - **Management Summary** (Kurze Zusammenfassung des Wertversprechens)
            - **IST-Analyse** (Aktuelle Situation & Herausforderungen des Kunden)
            - **SOLL-Konzept** (Zielzustand & technologischer Lösungsansatz)
@@ -71,11 +156,19 @@ export async function writerNode(state) {
     // AWS Bedrock'a metni yazdırıyoruz
     const response = await llm.invoke(prompt);
 
-    console.log("✅ İçerik Üretici: Deutscher IT-Pitch ist fertig! (Almanca IT Teklifi hazır!)");
-    
+    // 💰 CFO: Writer maliyetini kaydet
+    trackLLMCost(
+        response.usage_metadata?.input_tokens || 0,
+        response.usage_metadata?.output_tokens || 0,
+        "WRITER", state.threadId || "SYSTEM", config?.configurable?.tenantConfig?.clientId || "default"
+    ).catch(() => { });
+
+    const logMsg = isSocialMediaTask ? "Social Media Content hazır!" : "Deutscher IT-Pitch ist fertig! (Almanca IT Teklifi hazır!)";
+    console.log(`✅ İçerik Üretici: ${logMsg}`);
+
     // YENİ DÖNGÜ KURALI: Tüm onayları ve eleştirileri sıfırlıyoruz!
-   // YENİ DÖNGÜ KURALI: 
-   return { 
+    // YENİ DÖNGÜ KURALI: 
+    return {
         finalContent: response.content,
         criticFeedback: null,
         humanFeedback: null,
@@ -83,6 +176,6 @@ export async function writerNode(state) {
         fileSaved: false,
         humanApproval: null,
         // Yazar hata düzeltiyorsa sayacı 1 artırır
-        revisionCount: activeFeedback ? 1 : 0 
+        revisionCount: activeFeedback ? 1 : 0
     };
 }

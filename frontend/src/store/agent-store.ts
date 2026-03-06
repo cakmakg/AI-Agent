@@ -12,7 +12,9 @@ export type AgentId =
     | "qa"
     | "hitl"
     | "publisher"
-    | "radar";
+    | "radar"
+    | "cmo"
+    | "cfo";
 
 export type WorkflowPhase =
     | "IDLE"
@@ -57,6 +59,43 @@ export interface MissionSummary {
     content?: string; // full content when selected
 }
 
+export interface SupportTicketSummary {
+    _id: string;
+    emailMessageId: string;
+    gmailThreadId: string;
+    from: string;
+    subject: string;
+    category: "SUPPORT_PRICING" | "SUPPORT_BUG";
+    draftResponse: string;
+    createdAt: string;
+}
+
+export interface CampaignDraftSummary {
+    _id: string;
+    threadId: string;
+    reportTitle: string;
+    campaignContent: string;
+    status: "AWAITING_APPROVAL" | "PUBLISHED" | "REJECTED";
+    createdAt: string;
+}
+
+export type ActiveView = "chat" | "inbox" | "cfo" | "knowledge" | "topology" | "settings" | "skills";
+
+export type DrawerItem =
+    | { type: "report"; threadId: string }
+    | { type: "support"; ticket: SupportTicketSummary }
+    | { type: "campaign"; campaign: CampaignDraftSummary }
+    | { type: "mission"; mission: MissionSummary };
+
+export interface ChatMessage {
+    id: string;
+    role: "user" | "agent" | "system" | "alert";
+    agentId?: AgentId;
+    content: string;
+    timestamp: string;
+    phase?: WorkflowPhase;
+}
+
 interface AgentStore {
     // ── Agent States ──
     agents: Record<AgentId, AgentState>;
@@ -81,6 +120,22 @@ interface AgentStore {
     selectedMission: MissionSummary | null;
     archiveOpen: boolean;
 
+    // ── Support Tickets (Gmail) ──
+    supportTickets: SupportTicketSummary[];
+
+    // ── Campaign Drafts (CMO) ──
+    campaignDrafts: CampaignDraftSummary[];
+
+    // ── UI Navigation ──
+    activeView: ActiveView;
+    drawerItem: DrawerItem | null;
+
+    // ── Chat Messages (agent aktivasyonları + kullanıcı mesajları) ──
+    chatMessages: ChatMessage[];
+
+    // ── Auth ──
+    apiKey: string | null;
+
     // ── Actions ──
     setAgentStatus: (id: AgentId, status: AgentStatus) => void;
     setActiveAgent: (id: AgentId | null) => void;
@@ -100,6 +155,17 @@ interface AgentStore {
     fetchMissions: () => Promise<void>;
     selectMission: (threadId: string) => Promise<void>;
     toggleArchive: () => void;
+    fetchSupportTickets: () => Promise<void>;
+    approveSupportTicket: (ticketId: string, isApproved: boolean, feedback?: string) => Promise<void>;
+    fetchCampaignDrafts: () => Promise<void>;
+    approveCampaign: (campaignId: string, isApproved: boolean, feedback?: string) => Promise<void>;
+
+    // ── UI Navigation ──
+    setActiveView: (view: ActiveView) => void;
+    setDrawerItem: (item: DrawerItem | null) => void;
+    addChatMessage: (msg: Omit<ChatMessage, "id">) => void;
+    clearChatMessages: () => void;
+    setApiKey: (key: string | null) => void;
 }
 
 const getTimestamp = (): string => {
@@ -121,6 +187,8 @@ const DEFAULT_AGENTS: Record<AgentId, AgentState> = {
     hitl: { id: "hitl", label: "İnsan Yargıç", shortLabel: "HITL", icon: "👨‍⚖️", color: "#ff2d55", status: "IDLE" },
     publisher: { id: "publisher", label: "Dağıtımcı", shortLabel: "PUB", icon: "📢", color: "#00f0ff", status: "IDLE" },
     radar: { id: "radar", label: "Ar-Ge Radar", shortLabel: "RDR", icon: "🔬", color: "#39ff14", status: "IDLE" },
+    cmo: { id: "cmo", label: "Pazarlama Dir.", shortLabel: "CMO", icon: "📣", color: "#ff6b35", status: "IDLE" },
+    cfo: { id: "cfo", label: "Finans Dir.", shortLabel: "CFO", icon: "📊", color: "#00d4aa", status: "IDLE" },
 };
 
 export const useAgentStore = create<AgentStore>((set, get) => ({
@@ -137,6 +205,12 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     missions: [],
     selectedMission: null,
     archiveOpen: false,
+    supportTickets: [],
+    campaignDrafts: [],
+    activeView: "chat",
+    drawerItem: null,
+    chatMessages: [],
+    apiKey: typeof window !== "undefined" ? localStorage.getItem("ai_orchestra_api_key") : null,
 
     setAgentStatus: (id, status) =>
         set((state) => ({
@@ -168,6 +242,25 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
 
     setCronSeconds: (seconds) => set({ cronSecondsLeft: seconds }),
 
+    setActiveView: (view) => set({ activeView: view }),
+    setDrawerItem: (item) => set({ drawerItem: item }),
+    addChatMessage: (msg) =>
+        set((state) => ({
+            chatMessages: [
+                ...state.chatMessages.slice(-200),
+                { ...msg, id: `cm-${Date.now()}-${Math.random().toString(36).slice(2, 6)}` },
+            ],
+        })),
+    clearChatMessages: () => set({ chatMessages: [] }),
+    setApiKey: (key) => {
+        if (key) {
+            localStorage.setItem("ai_orchestra_api_key", key);
+        } else {
+            localStorage.removeItem("ai_orchestra_api_key");
+        }
+        set({ apiKey: key });
+    },
+
     resetAllAgents: () =>
         set({
             agents: { ...DEFAULT_AGENTS },
@@ -176,8 +269,11 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
 
     // ── Send Mission to Backend ──
     sendMission: async (message: string) => {
-        const { addLog, setAgentStatus, setActiveAgent, setWorkflowPhase, addAlert } = get();
+        const { addLog, setAgentStatus, setActiveAgent, setWorkflowPhase, addAlert, addChatMessage, clearChatMessages } = get();
         set({ missionMessage: message, workflowPhase: "DISPATCHING" });
+        clearChatMessages();
+        addChatMessage({ role: "user", content: message, timestamp: getTimestamp() });
+        addChatMessage({ role: "system", content: "Mission dispatching to AI Orchestra...", timestamp: getTimestamp() });
 
         addLog({ timestamp: getTimestamp(), agent: "SYSTEM", message: `Mission received: "${message.slice(0, 60)}..."`, level: "INFO" });
         addLog({ timestamp: getTimestamp(), agent: "SYSTEM", message: "Dispatching to AI Orchestra backend...", level: "INFO" });
@@ -189,9 +285,12 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
             setWorkflowPhase("RUNNING");
             addLog({ timestamp: getTimestamp(), agent: "CEO", message: "Orchestrator analyzing request...", level: "INFO" });
 
+            const headers: Record<string, string> = { "Content-Type": "application/json" };
+            if (get().apiKey) headers["x-api-key"] = get().apiKey;
+
             const res = await fetch("/api/inbox", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers,
                 body: JSON.stringify({ message }),
             });
 
@@ -259,19 +358,10 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
                         }
                         get().setAgentStatus(agentId, "ACTIVE");
                         get().setActiveAgent(agentId);
-                        addLog({
-                            timestamp: getTimestamp(),
-                            agent: agentId.toUpperCase(),
-                            message: agentLabels[agentId] ?? "Agent activated",
-                            level: "INFO",
-                        });
+                        const label = agentLabels[agentId] ?? "Agent activated";
+                        addLog({ timestamp: getTimestamp(), agent: agentId.toUpperCase(), message: label, level: "INFO" });
+                        get().addChatMessage({ role: "agent", agentId, content: label, timestamp: getTimestamp() });
                         previousAgent = agentId;
-                    }
-
-                    // ── __interrupt__ geldiğinde: spinner dur, modal aç ──
-                    if (event.type === "interrupt" || event.agent === "hitl") {
-                        // Bu event zaten agent_active olarak gelecek (backend düzeltildi)
-                        // ama ek güvence olarak burada da kontrol ediyoruz
                     }
 
                     if (event.type === "workflow_complete") {
@@ -282,6 +372,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
                             }
                             get().setAgentStatus("hitl", "ACTIVE");
                             get().setActiveAgent("hitl");
+                            get().addChatMessage({ role: "alert", content: "Rapor hazır — HITL onayı bekleniyor. Inbox'tan inceleyin.", timestamp: getTimestamp(), phase: "AWAITING_APPROVAL" });
 
                             const content = event.pendingContent?.trim();
 
@@ -298,7 +389,11 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
                                     ? `/api/artifact/${currentThreadId}`
                                     : `/api/artifact/latest`;
 
-                                fetch(url)
+                                const fHeaders: Record<string, string> = {};
+                                const apiKey = get().apiKey;
+                                if (apiKey) fHeaders["x-api-key"] = apiKey;
+
+                                fetch(url, { headers: fHeaders })
                                     .then((r) => r.json())
                                     .then((artifact) => {
                                         const fetched = artifact.content?.trim() || "*(İçerik hazır — yeniden yükleyin)*";
@@ -362,9 +457,12 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
         addLog({ timestamp: getTimestamp(), agent: "PUBLISHER", message: "Initiating payload delivery sequence...", level: "INFO" });
 
         try {
+            const headers: Record<string, string> = { "Content-Type": "application/json" };
+            if (get().apiKey) headers["x-api-key"] = get().apiKey;
+
             const res = await fetch("/api/approve", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers,
                 body: JSON.stringify({
                     threadId,
                     isApproved: true,
@@ -419,9 +517,12 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
         addAlert({ message: "OVERRIDE — REVISION CYCLE INITIATED", type: "error" });
 
         try {
+            const headers: Record<string, string> = { "Content-Type": "application/json" };
+            if (get().apiKey) headers["x-api-key"] = get().apiKey;
+
             const res = await fetch("/api/approve", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers,
                 body: JSON.stringify({
                     threadId,
                     isApproved: false,
@@ -459,7 +560,11 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
         const primaryUrl = threadId ? `/api/artifact/${threadId}` : `/api/artifact/latest`;
 
         const tryFetch = async (url: string) => {
-            const res = await fetch(url);
+            const fHeaders: Record<string, string> = {};
+            const apiKey = get().apiKey;
+            if (apiKey) fHeaders["x-api-key"] = apiKey;
+
+            const res = await fetch(url, { headers: fHeaders });
             if (!res.ok) return null;
             const data = await res.json();
             if (!data.success || !data.content) return null;
@@ -513,9 +618,12 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
         addAlert({ message: "R&D PROTOCOL ACTIVATED — SCANNING AI LANDSCAPE", type: "warning" });
 
         try {
+            const headers: Record<string, string> = { "Content-Type": "application/json" };
+            if (get().apiKey) headers["x-api-key"] = get().apiKey;
+
             const res = await fetch("/api/rnd", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers,
             });
 
             const data = await res.json();
@@ -618,7 +726,10 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     // ── Mission Archive ──
     fetchMissions: async () => {
         try {
-            const res = await fetch("http://localhost:3000/api/missions?limit=50");
+            const headers: Record<string, string> = {};
+            if (get().apiKey) headers["x-api-key"] = get().apiKey;
+
+            const res = await fetch("/api/missions?limit=50", { headers });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data = await res.json() as { missions: import("./agent-store").MissionSummary[] };
             set({ missions: data.missions ?? [] });
@@ -634,7 +745,10 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
             if (existing) set({ selectedMission: existing });
 
             // Then fetch full content
-            const res = await fetch(`http://localhost:3000/api/missions/${threadId}`);
+            const headers: Record<string, string> = {};
+            if (get().apiKey) headers["x-api-key"] = get().apiKey;
+
+            const res = await fetch(`/api/missions/${threadId}`, { headers });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data = await res.json() as import("./agent-store").MissionSummary & { content: string };
             set({ selectedMission: { ...data } });
@@ -646,10 +760,83 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     toggleArchive: () => {
         const isOpen = get().archiveOpen;
         if (!isOpen) {
-            // Fetch missions when opening archive
             get().fetchMissions();
         }
         set({ archiveOpen: !isOpen, selectedMission: null });
+    },
+
+    fetchSupportTickets: async () => {
+        try {
+            const headers: Record<string, string> = {};
+            if (get().apiKey) headers["x-api-key"] = get().apiKey;
+
+            const res = await fetch("/api/support/pending", { headers });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json() as { tickets: SupportTicketSummary[] };
+            set({ supportTickets: data.tickets ?? [] });
+        } catch (err) {
+            console.error("fetchSupportTickets failed:", err);
+        }
+    },
+
+    approveSupportTicket: async (ticketId: string, isApproved: boolean, feedback?: string) => {
+        const { addLog, addAlert, fetchSupportTickets } = get();
+        try {
+            addLog({ timestamp: getTimestamp(), agent: "HITL", message: `Support ticket ${isApproved ? "approved" : "rejected"}: ${ticketId}`, level: "INFO" });
+
+            const headers: Record<string, string> = { "Content-Type": "application/json" };
+            if (get().apiKey) headers["x-api-key"] = get().apiKey;
+
+            const res = await fetch(`/api/support/${ticketId}/approve`, {
+                method: "POST",
+                headers,
+                body: JSON.stringify({ isApproved, feedback }),
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json() as { status: string };
+            addLog({ timestamp: getTimestamp(), agent: "SYSTEM", message: `Ticket ${data.status} — ${isApproved ? "reply sent via Gmail" : "rejected"}`, level: "SUCCESS" });
+            addAlert({ message: isApproved ? "Mail yaniti gonderildi!" : "Ticket reddedildi.", type: isApproved ? "success" : "warning" });
+            await fetchSupportTickets();
+        } catch (err) {
+            addAlert({ message: `Support ticket hatasi: ${err instanceof Error ? err.message : String(err)}`, type: "error" });
+        }
+    },
+
+    fetchCampaignDrafts: async () => {
+        try {
+            const headers: Record<string, string> = {};
+            if (get().apiKey) headers["x-api-key"] = get().apiKey;
+
+            const res = await fetch("/api/campaign/pending", { headers });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json() as { campaigns: CampaignDraftSummary[] };
+            set({ campaignDrafts: data.campaigns ?? [] });
+        } catch (err) {
+            console.error("fetchCampaignDrafts failed:", err);
+        }
+    },
+
+    approveCampaign: async (campaignId: string, isApproved: boolean, feedback?: string) => {
+        const { addLog, addAlert, fetchCampaignDrafts } = get();
+        try {
+            addLog({ timestamp: getTimestamp(), agent: "CMO", message: `Campaign ${isApproved ? "approved → publishing" : "rejected"}: ${campaignId}`, level: "INFO" });
+
+            const headers: Record<string, string> = { "Content-Type": "application/json" };
+            if (get().apiKey) headers["x-api-key"] = get().apiKey;
+
+            const res = await fetch(`/api/campaign/${campaignId}/approve`, {
+                method: "POST",
+                headers,
+                body: JSON.stringify({ isApproved, feedback }),
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json() as { status: string };
+            addLog({ timestamp: getTimestamp(), agent: "CMO", message: `Campaign ${data.status} — posted to Discord & Telegram`, level: "SUCCESS" });
+            addAlert({ message: isApproved ? "Kampanya yayinlandi! Discord & Telegram'a gönderildi." : "Kampanya reddedildi.", type: isApproved ? "success" : "warning" });
+            await fetchCampaignDrafts();
+        } catch (err) {
+            addAlert({ message: `Kampanya hatasi: ${err instanceof Error ? err.message : String(err)}`, type: "error" });
+        }
     },
 }));
 

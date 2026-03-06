@@ -2,6 +2,7 @@ import { ChatBedrockConverse } from "@langchain/aws";
 import { z } from "zod";
 import fs from "fs";
 import path from "path";
+import { trackLLMCostFromStrings } from "../services/costTracker.js";
 
 // Ajan 8: Baş Yazılım Mimarı (CTO / Tech Lead)
 const llm = new ChatBedrockConverse({
@@ -43,6 +44,9 @@ export async function architectNode(state) {
     Schreiben Sie den 'blueprintContent' so präzise und instruktiv wie möglich, als würden Sie Befehle an ein KI-Coding-Tool geben. (Sprache des Blueprints: Englisch für maximale Kompatibilität mit Coding-Tools).`;
 
     const response = await llmWithStructuredOutput.invoke(prompt);
+
+    // 💰 CFO: CTO maliyeti kaydediliyor
+    trackLLMCostFromStrings(prompt, JSON.stringify(response), "ARCHITECT", state.threadId || "SYSTEM", config?.configurable?.tenantConfig?.clientId || "default").catch(() => { });
 
     console.log(`   -> Mimari Karar: ${response.explanation}`);
     console.log(`   -> Proje Adı: ${response.projectName}`);

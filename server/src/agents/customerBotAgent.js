@@ -1,11 +1,10 @@
 import { ChatBedrockConverse } from "@langchain/aws";
 import { z } from "zod";
-import fs from "fs"; // Dosya okumak için
-import path from "path";
+import { searchKnowledge } from "../services/ragService.js";
 
 // Ajan 6: Triyaj ve Destek Yöneticisi
 const llm = new ChatBedrockConverse({
-    model: "eu.anthropic.claude-sonnet-4-5-20250929-v1:0", 
+    model: "eu.anthropic.claude-sonnet-4-5-20250929-v1:0",
     region: process.env.AWS_REGION,
     credentials: {
         accessKeyId: process.env.AWS_ACCESS_KEY_ID,
@@ -15,41 +14,54 @@ const llm = new ChatBedrockConverse({
 
 const leadSchema = z.object({
     category: z.enum(["SPAM", "HOT_LEAD", "SUPPORT_PRICING", "SUPPORT_BUG", "OTHER"])
-               .describe("Gelen mesajın kategorisi."),
+        .describe("Gelen mesajın kategorisi."),
     isHotLead: z.boolean()
-                .describe("Sadece HOT_LEAD kategorisi için true olmalıdır."),
+        .describe("Sadece HOT_LEAD kategorisi için true olmalıdır."),
     analysis: z.string()
-               .describe("Müşterinin niyetinin Almanca kısa bir analizi."),
+        .describe("Müşterinin niyetinin Almanca kısa bir analizi."),
     orchestratorTask: z.string()
-                       .describe("Eğer HOT_LEAD ise, Orkestra Şefine verilecek görev. Değilse boş bırak."),
+        .describe("Eğer HOT_LEAD ise, Orkestra Şefine verilecek görev. Değilse boş bırak."),
     draftResponse: z.string()
-                    .describe("Eğer SUPPORT_PRICING oder SUPPORT_BUG ise, müşteriye gönderilecek Almanca taslak cevap. Değilse boş bırak.")
+        .describe("Eğer SUPPORT_PRICING oder SUPPORT_BUG ise, müşteriye gönderilecek Almanca taslak cevap. Değilse boş bırak.")
 });
 
 const llmWithStructuredOutput = llm.withStructuredOutput(leadSchema, {
     name: "analyze_incoming_message",
 });
 
-export async function processIncomingMessage(customerMessage) {
-    console.log("🕵️ Destek Yöneticisi (Ajan 6) Bilgi Tabanına bakıyor ve analiz ediyor...");
+export async function processIncomingMessage(customerMessage, clientId, tenantConfig = null) {
+    const tenantId = clientId || process.env.DEFAULT_CLIENT_ID || "default";
+    console.log(`🕵️ Destek Yöneticisi (Ajan 6) — clientId: ${tenantId}`);
 
-    // 🎯 RAG: Bilgi Tabanı Dosyasını Oku
+    // 🎯 RAG: MongoDB Vektör Araması (dinamik, müşteriye özel)
     let knowledgeBase = "";
     try {
-        const kbPath = path.join(process.cwd(), "data", "knowledge_base.md");
-        knowledgeBase = fs.readFileSync(kbPath, "utf-8");
-        console.log("📚 Bilgi tabanı (Knowledge Base) başarıyla okundu!");
+        knowledgeBase = await searchKnowledge(tenantId, customerMessage);
+        if (knowledgeBase) {
+            console.log(`📚 RAG: ${knowledgeBase.length} karakter ilgili bağlam bulundu.`);
+        } else {
+            console.log("⚠️ RAG: Bu clientId için bilgi tabanı boş — genel bilgiyle devam ediliyor.");
+        }
     } catch (err) {
-        console.log("⚠️ Bilgi tabanı bulunamadı, genel bilgiyle devam ediliyor.");
+        console.warn("⚠️ RAG araması başarısız, genel bilgiyle devam ediliyor:", err.message);
     }
 
-    const prompt = `Sie sind der Triage & Support Manager (Ajan 6) für ein deutsches IT- und KI-Beratungsunternehmen.
+    const agentPersona = tenantConfig?.agentPersona || "Sie sind der Triage & Support Manager (Ajan 6) für ein deutsches IT- und KI-Beratungsunternehmen.";
+    const companyContext = tenantConfig?.companyContext ? `Unternehmenskontext:\n${tenantConfig.companyContext}\n\n` : "";
+    const supportInstructions = tenantConfig?.supportInstructions ? `Support-Anweisungen:\n${tenantConfig.supportInstructions}\n\n` : "";
+
+    const prompt = `${agentPersona}
     
-    Ihnen liegt folgendes INTERNES WISSEN (Knowledge Base) vor:
-    ---
+    ${companyContext}
+    WICHTIGE UNTERNEHMENSREGELN UND WISSEN (KNOWLEDGE BASE):
+    --------------------------------------------------
     ${knowledgeBase}
-    ---
+    --------------------------------------------------
     
+    Deine Aufgabe: Beantworte die E-Mail des Kunden AUSSCHLIESSLICH basierend auf den obigen Informationen. 
+    Wenn die Antwort nicht in den Informationen steht, erfinde nichts (keine Halluzinationen!), sondern sage höflich, dass du das an einen Spezialisten weiterleitest.
+    
+    ${supportInstructions}
     Ihre Aufgabe ist es, diese Nachricht in EINE der folgenden Kategorien einzuordnen:
     1. SPAM: Offensichtliche Werbung oder irrelevanter Inhalt.
     2. HOT_LEAD: Ein potenzieller Neukunde, der ein Projekt, eine Dienstleistung oder Beratung sucht.
@@ -73,7 +85,7 @@ export async function processIncomingMessage(customerMessage) {
 
     console.log(`   -> Kategori: ${response.category}`);
     console.log(`   -> Analiz: ${response.analysis}`);
-    
+
     if (response.category === "HOT_LEAD") {
         console.log(`🔥 SICAK MÜŞTERİ! Şef'e Görev Çıkarılıyor: ${response.orchestratorTask}`);
     } else if (response.category === "SUPPORT_PRICING" || response.category === "SUPPORT_BUG") {
