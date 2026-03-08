@@ -19,7 +19,7 @@ export default function Home() {
     return (
         <div
             className="w-screen h-screen flex overflow-hidden"
-            style={{ background: "#090e1a" }}
+            style={{ background: "#111827" }}
         >
             <ApiKeyModal />
             <SystemAlerts />

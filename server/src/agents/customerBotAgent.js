@@ -35,10 +35,13 @@ export async function processIncomingMessage(customerMessage, clientId, tenantCo
 
     // 🎯 RAG: MongoDB Vektör Araması (dinamik, müşteriye özel)
     let knowledgeBase = "";
+    let ragSources = [];
     try {
-        knowledgeBase = await searchKnowledge(tenantId, customerMessage);
+        const ragResult = await searchKnowledge(tenantId, customerMessage);
+        knowledgeBase = ragResult.context;
+        ragSources = ragResult.sources;
         if (knowledgeBase) {
-            console.log(`📚 RAG: ${knowledgeBase.length} karakter ilgili bağlam bulundu.`);
+            console.log(`📚 RAG: ${ragSources.length} kaynak bulundu (en iyi: ${ragSources[0]?.score}%)`);
         } else {
             console.log("⚠️ RAG: Bu clientId için bilgi tabanı boş — genel bilgiyle devam ediliyor.");
         }
@@ -95,5 +98,5 @@ export async function processIncomingMessage(customerMessage, clientId, tenantCo
         console.log("🛑 Mesaj pas geçildi (SPAM/OTHER). Orkestra yorulmayacak.");
     }
 
-    return response;
+    return { ...response, ragSources };
 }

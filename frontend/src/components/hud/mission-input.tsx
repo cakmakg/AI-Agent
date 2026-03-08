@@ -26,9 +26,16 @@ export const MissionInput = () => {
     };
 
     return (
-        <div className="glass-panel border border-neon-blue/15 rounded-md px-4 py-2.5 flex items-center gap-3">
+        <div className="rounded-xl px-4 py-3 flex items-center gap-3 border transition-all duration-200"
+            style={{
+                background: "rgba(20, 30, 55, 0.9)",
+                borderColor: isRunning ? "rgba(251,191,36,0.35)" : "rgba(56,189,248,0.25)",
+                boxShadow: isRunning
+                    ? "0 0 20px rgba(251,191,36,0.08)"
+                    : "0 0 20px rgba(56,189,248,0.08)",
+            }}>
             {/* Status indicator */}
-            <div className={`w-2 h-2 rounded-full shrink-0 ${isRunning ? "bg-cyber-amber animate-pulse" : "bg-neon-green"}`} />
+            <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${isRunning ? "bg-cyber-amber animate-pulse" : "bg-neon-green"}`} />
 
             {/* Input */}
             <input
@@ -37,35 +44,35 @@ export const MissionInput = () => {
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
                 disabled={isRunning}
-                placeholder={isRunning ? "Mission in progress... stand by" : 'Enter mission directive (e.g. "Yeni bir CRM projesi için mimari çiz")'}
-                className="flex-1 bg-transparent border-none outline-none font-mono text-[11px] text-white/80 placeholder:text-white/20 disabled:opacity-40 disabled:cursor-not-allowed"
+                placeholder={isRunning ? "Görev yürütülüyor... lütfen bekleyin" : 'Görev girin — ör: "Yeni bir CRM projesi için mimari çiz"'}
+                className="flex-1 bg-transparent border-none outline-none font-mono text-[12px] text-white/90 placeholder:text-white/35 disabled:opacity-50 disabled:cursor-not-allowed"
                 id="mission-input"
                 aria-label="Mission directive input"
             />
 
             {/* Submit button */}
             <motion.button
-                whileHover={!isDisabled ? { scale: 1.05 } : {}}
-                whileTap={!isDisabled ? { scale: 0.95 } : {}}
+                whileHover={!isDisabled ? { scale: 1.04 } : {}}
+                whileTap={!isDisabled ? { scale: 0.96 } : {}}
                 onClick={handleSubmit}
                 disabled={isDisabled}
-                className={`shrink-0 flex items-center gap-2 px-4 py-1.5 rounded font-mono text-[9px] font-bold uppercase tracking-[0.15em] transition-all duration-200
+                className={`shrink-0 flex items-center gap-2 px-5 py-2 rounded-lg font-mono text-[10px] font-bold uppercase tracking-[0.12em] transition-all duration-200
           ${isRunning
-                        ? "border border-cyber-amber/30 text-cyber-amber/50 cursor-not-allowed"
+                        ? "border border-cyber-amber/35 text-cyber-amber/60 bg-cyber-amber/8 cursor-not-allowed"
                         : isDisabled
-                            ? "border border-white/10 text-white/20 cursor-not-allowed"
-                            : "border border-neon-blue/50 text-neon-blue hover:bg-neon-blue/10 hover:border-neon-blue/70 hover:shadow-[0_0_15px_rgba(0,240,255,0.15)]"
+                            ? "border border-white/15 text-white/30 cursor-not-allowed"
+                            : "border border-neon-blue/50 text-neon-blue bg-neon-blue/10 hover:bg-neon-blue/20 hover:border-neon-blue/70 hover:shadow-[0_0_16px_rgba(56,189,248,0.2)]"
                     }`}
                 id="initiate-mission-btn"
                 aria-label="Initiate mission"
             >
                 {isRunning ? (
                     <>
-                        <Loader2 size={12} className="animate-spin" /> Processing
+                        <Loader2 size={13} className="animate-spin" /> İşleniyor
                     </>
                 ) : (
                     <>
-                        <Send size={12} /> Initiate
+                        <Send size={13} /> Başlat
                     </>
                 )}
             </motion.button>

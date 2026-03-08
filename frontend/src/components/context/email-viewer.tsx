@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { motion } from "framer-motion";
-import { Send, XCircle, Loader2, Mail } from "lucide-react";
+import { Send, XCircle, Loader2, Mail, BookOpen } from "lucide-react";
 import { useAgentStore } from "@/store/agent-store";
 import type { SupportTicketSummary } from "@/store/agent-store";
 
@@ -86,6 +86,28 @@ export const EmailViewer = ({ ticket }: Props) => {
                         rows={12}
                     />
                     <p className="font-mono text-[8px] text-white/20 mt-1.5">Edit before sending · Changes are not saved automatically</p>
+
+                    {/* RAG Citation Badges */}
+                    {ticket.ragSources && ticket.ragSources.length > 0 && (
+                        <div className="mt-3 pt-3 border-t border-white/5">
+                            <div className="flex items-center gap-1.5 mb-2">
+                                <BookOpen size={9} className="text-neon-blue/50" />
+                                <span className="font-mono text-[8px] text-white/25 uppercase tracking-wider">Knowledge Sources</span>
+                            </div>
+                            <div className="flex flex-wrap gap-1.5">
+                                {ticket.ragSources.map((src, i) => (
+                                    <div
+                                        key={i}
+                                        className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-neon-blue/5 border border-neon-blue/15"
+                                        title={src.title}
+                                    >
+                                        <span className="font-mono text-[8px] text-neon-blue/60 max-w-[120px] truncate">{src.title}</span>
+                                        <span className="font-mono text-[7px] text-neon-blue/35">{src.score}%</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
 

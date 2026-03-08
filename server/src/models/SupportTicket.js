@@ -38,6 +38,10 @@ const SupportTicketSchema = new mongoose.Schema(
             type: String,
             default: "",
         },
+        ragSources: {
+            type: [{ title: String, score: Number }],
+            default: [],
+        },
         status: {
             type: String,
             enum: ["AWAITING_APPROVAL", "SENT", "REJECTED", "ESCALATED"],

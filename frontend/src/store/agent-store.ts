@@ -59,6 +59,11 @@ export interface MissionSummary {
     content?: string; // full content when selected
 }
 
+export interface RagSource {
+    title: string;
+    score: number;
+}
+
 export interface SupportTicketSummary {
     _id: string;
     emailMessageId: string;
@@ -67,6 +72,7 @@ export interface SupportTicketSummary {
     subject: string;
     category: "SUPPORT_PRICING" | "SUPPORT_BUG";
     draftResponse: string;
+    ragSources: RagSource[];
     createdAt: string;
 }
 

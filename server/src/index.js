@@ -7,6 +7,7 @@ import mongoose from "mongoose";
 import { tenantMiddleware } from "./middleware/tenant.js";
 import routes from "./routes/index.js";
 import { startCronJobs } from "./services/cronService.js";
+import { startTelegramBot } from "./services/telegramBotService.js";
 
 const server = express();
 server.use(helmet());
@@ -28,3 +29,4 @@ server.listen(PORT, () => {
 });
 
 startCronJobs();
+startTelegramBot();

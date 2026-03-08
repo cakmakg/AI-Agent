@@ -1,4 +1,4 @@
-import { OpenAIEmbeddings } from "@langchain/openai";
+import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
 import { Knowledge } from "../models/Knowledge.js";
 import * as cheerio from "cheerio";
 import https from "https";
@@ -8,9 +8,10 @@ import { createRequire } from "module";
 const require = createRequire(import.meta.url);
 const pdfParse = require("pdf-parse");
 
-// OpenAI'ın en yeni, en ucuz ve en akıllı embedding modeli
-const embeddings = new OpenAIEmbeddings({
-    modelName: "text-embedding-3-small",
+// Google'ın en güçlü Vektör modeli
+const embeddings = new GoogleGenerativeAIEmbeddings({
+    model: "gemini-embedding-001", // API Key'in izin verdiği yegane model
+    apiKey: process.env.GEMINI_API_KEY,
 });
 
 // ── 1. Text Chunking ──────────────────────────────────────────────────────────
@@ -141,52 +142,50 @@ export async function addUrlToKnowledge(clientId, url) {
 // ── 6. Semantic Search (MongoDB Atlas Vector Search) ─────────────────────────
 /**
  * Müşterinin sorusuna en uygun bilgileri Vektör Veritabanından (RAG) bulup getirir.
- * @param {string} clientId - Hangi müşterinin verisinde arama yapılacak? (Veri sızıntısını önler)
- * @param {string} query - Ajanın aradığı soru (Örn: "Kanal tedavisi fiyatı nedir?")
- * @returns {string} - Bulunan bilgilerin birleştirilmiş metin hali
+ * @returns {{ context: string, sources: Array<{title: string, score: number}> }}
  */
 export async function searchKnowledge(clientId, query) {
     try {
         console.log(`🔍 [RAG] "${clientId}" için şu soru aranıyor: "${query}"`);
 
-        // 1. Ajanın sorusunu Vektöre (Matematiğe) çevir
         const queryVector = await embeddings.embedQuery(query);
 
-        // 2. MongoDB'de o meşhur "vector_index" gözlüğü ile arama yap!
         const results = await Knowledge.aggregate([
             {
                 $vectorSearch: {
-                    index: "vector_index", // Atlas'ta az önce yarattığın ismin aynısı!
-                    path: "embedding",     // Vektörlerin olduğu sütun
-                    queryVector: queryVector,
-                    numCandidates: 100,    // MongoDB'nin tarayacağı aday sayısı
-                    limit: 3,              // En alakalı ilk 3 paragrafı getir
-                    filter: { clientId: clientId } // ⚠️ GÜVENLİK DUVARI: Sadece bu müşterinin verilerini ara!
+                    index: "vector_index",
+                    path: "embedding",
+                    queryVector,
+                    numCandidates: 100,
+                    limit: 3,
+                    filter: { clientId },
                 }
             },
             {
-                // Sadece işimize yarayan kısımları al (Vektör sayılarını geri indirme, çok yer kaplar)
                 $project: {
                     title: 1,
                     content: 1,
-                    score: { $meta: "vectorSearchScore" } // Alakalılık puanı (Örn: %95 eşleşme)
+                    score: { $meta: "vectorSearchScore" },
                 }
             }
         ]);
 
         if (results.length === 0) {
-            return "Bu konu hakkında bilgi tabanında (Knowledge Base) kayıtlı bir veri bulunamadı.";
+            return { context: "", sources: [] };
         }
 
-        // Bulunan sonuçları tek bir metin halinde birleştir ve ajana ver
-        const combinedKnowledge = results.map(r => `[Kaynak: ${r.title}] ${r.content}`).join("\n\n");
+        const context = results.map(r => `[Kaynak: ${r.title}]\n${r.content}`).join("\n\n---\n\n");
+        const sources = results.map(r => ({
+            title: r.title,
+            score: Math.round((r.score ?? 0) * 100), // 0-100 yüzde
+        }));
 
         console.log(`✅ [RAG] ${results.length} adet alakalı bilgi bulundu!`);
-        return combinedKnowledge;
+        return { context, sources };
 
     } catch (error) {
         console.error("❌ [RAG] Arama sırasında hata:", error.message);
-        return "Bilgi tabanına şu an ulaşılamıyor.";
+        return { context: "", sources: [] };
     }
 }
 

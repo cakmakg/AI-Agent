@@ -2,9 +2,35 @@
 
 import React, { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Blocks, AlertCircle, Calendar, MessageCircle, FileText } from "lucide-react";
+import { Blocks, Calendar, MessageCircle, FileText } from "lucide-react";
+import { useAgentStore } from "@/store/agent-store";
 
-const SKILLS_MANIFEST = [
+interface SkillField {
+    key: string;
+    label: string;
+}
+
+interface Skill {
+    id: string;
+    name: string;
+    description: string;
+    icon: React.ReactNode;
+    fields?: SkillField[];
+}
+
+interface SkillConfig {
+    [field: string]: string;
+}
+
+interface TenantConfigResponse {
+    success: boolean;
+    config: {
+        enabledSkills?: string[];
+        skillConfigs?: Record<string, SkillConfig>;
+    } | null;
+}
+
+const SKILLS_MANIFEST: Skill[] = [
     {
         id: "knowledge_search",
         name: "Bilgi Tabanı (RAG)",
@@ -28,28 +54,25 @@ const SKILLS_MANIFEST = [
 ];
 
 export const SkillsView = () => {
-    const [config, setConfig] = useState<any>(null);
+    const addAlert = useAgentStore((s) => s.addAlert);
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
-
-    // Form states
     const [enabledSkills, setEnabledSkills] = useState<string[]>([]);
-    const [skillConfigs, setSkillConfigs] = useState<Record<string, any>>({});
-    const [activeTab, setActiveTab] = useState<string>("all");
+    const [skillConfigs, setSkillConfigs] = useState<Record<string, SkillConfig>>({});
 
     useEffect(() => {
         setLoading(true);
         fetch("/api/tenant/config")
             .then(r => r.json())
-            .then(data => {
+            .then((data: TenantConfigResponse) => {
                 if (data.success && data.config) {
-                    setConfig(data.config);
                     setEnabledSkills(data.config.enabledSkills || []);
                     setSkillConfigs(data.config.skillConfigs || {});
                 }
             })
+            .catch(() => addAlert({ message: "Skill Store yüklenemedi.", type: "error" }))
             .finally(() => setLoading(false));
-    }, []);
+    }, [addAlert]);
 
     const toggleSkill = (skillId: string) => {
         setEnabledSkills(prev =>
@@ -60,10 +83,7 @@ export const SkillsView = () => {
     const handleConfigChange = (skillId: string, field: string, value: string) => {
         setSkillConfigs(prev => ({
             ...prev,
-            [skillId]: {
-                ...(prev[skillId] || {}),
-                [field]: value
-            }
+            [skillId]: { ...(prev[skillId] || {}), [field]: value }
         }));
     };
 
@@ -76,10 +96,12 @@ export const SkillsView = () => {
                 body: JSON.stringify({ enabledSkills, skillConfigs })
             });
             if (res.ok) {
-                alert("Skill Store yapılandırması başarıyla kaydedildi!");
+                addAlert({ message: "Skill Store yapılandırması kaydedildi.", type: "success" });
+            } else {
+                addAlert({ message: "Kayıt sırasında hata oluştu.", type: "error" });
             }
-        } catch (err) {
-            console.error(err);
+        } catch {
+            addAlert({ message: "Kayıt sırasında hata oluştu.", type: "error" });
         }
         setSaving(false);
     };

@@ -88,14 +88,14 @@ export const TerminalLogs = () => {
                     </div>
                     <span className="neon-text-blue font-mono text-[11px] uppercase tracking-[0.2em] animate-flicker">▸ sys_terminal</span>
                 </div>
-                <div className="flex items-center gap-3 text-[9px] font-mono text-white/30">
+                <div className="flex items-center gap-3 text-[9px] font-mono text-white/55">
                     <span>CPU: <span className="text-neon-green">{systemLoad}%</span></span>
                     <span className="w-1 h-1 rounded-full bg-neon-green animate-pulse" />
                     <span>LIVE</span>
                 </div>
             </div>
 
-            <div ref={scrollRef} className="flex-1 overflow-y-auto scrollbar-hide px-4 py-3 font-mono text-[10px] leading-[1.8] flex flex-col">
+            <div ref={scrollRef} className="flex-1 overflow-y-auto scrollbar-styled px-4 py-3 font-mono text-[11px] leading-[1.8] flex flex-col">
                 {logs.map((log) => {
                     const config = LEVEL_CONFIG[log.level];
                     return (
@@ -104,22 +104,22 @@ export const TerminalLogs = () => {
                             initial={{ opacity: 0, x: -8 }}
                             animate={{ opacity: 1, x: 0 }}
                             transition={{ duration: 0.15 }}
-                            className="flex items-baseline gap-1.5 hover:bg-white/[0.02] px-1 rounded-sm"
+                            className="flex items-baseline gap-2 hover:bg-white/4 px-2 py-0.5 rounded"
                         >
-                            <span className="text-white/25 shrink-0 select-none">{log.timestamp}</span>
-                            <span className={`shrink-0 text-[9px] px-1 py-[1px] rounded-sm bg-white/5 ${config.cls}`}>{config.prefix}</span>
-                            <span className={`shrink-0 font-semibold ${getAgentColor(log.agent)}`}>{log.agent.padEnd(9)}</span>
-                            <span className="text-white/60 break-words">{log.message}</span>
+                            <span className="text-white/40 shrink-0 select-none text-[10px]">{log.timestamp}</span>
+                            <span className={`shrink-0 text-[9px] px-1.5 py-[1px] rounded bg-white/8 font-bold ${config.cls}`}>{config.prefix}</span>
+                            <span className={`shrink-0 font-bold ${getAgentColor(log.agent)}`}>{log.agent.padEnd(9)}</span>
+                            <span className="text-white/75 break-words">{log.message}</span>
                         </motion.div>
                     );
                 })}
-                <div className="flex items-center gap-1 mt-1 text-neon-green/50">
+                <div className="flex items-center gap-1 mt-1 text-neon-green/60">
                     <span>▸</span>
-                    <span className="w-[6px] h-[14px] bg-neon-green/70 animate-typing-cursor" />
+                    <span className="w-[6px] h-[14px] bg-neon-green/80 animate-typing-cursor" />
                 </div>
             </div>
 
-            <div className="flex items-center justify-between px-4 py-1.5 border-t border-white/5 text-[8px] font-mono text-white/20 bg-white/[0.01] shrink-0">
+            <div className="flex items-center justify-between px-4 py-1.5 border-t border-white/10 text-[9px] font-mono text-white/40 bg-white/[0.02] shrink-0">
                 <span>BUFFER: {logs.length}/120</span>
                 <span>AGENTS: 9 ONLINE</span>
                 <span>PROTOCOL: AES-256</span>

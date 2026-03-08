@@ -55,6 +55,7 @@ async function pollGmailInbox() {
                     body: email.body,
                     category: analysis.category,
                     draftResponse: analysis.draftResponse || "",
+                    ragSources: analysis.ragSources || [],
                     status: "AWAITING_APPROVAL",
                 });
                 await markAsRead(email.messageId);

@@ -1,44 +1,67 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
+import { useAgentStore } from "@/store/agent-store";
+
+interface TenantConfigData {
+    agentPersona: string;
+    tone: string;
+    companyContext: string;
+    supportInstructions: string;
+    companyName: string;
+    language: string;
+}
+
+interface ClientData {
+    name: string;
+    slug: string;
+}
+
+interface TenantConfigResponse {
+    success: boolean;
+    config: TenantConfigData | null;
+    client: ClientData | null;
+}
+
+const DEFAULT_FORM: TenantConfigData = {
+    agentPersona: "",
+    tone: "Kibar, profesyonel, güven verici",
+    companyContext: "",
+    supportInstructions: "",
+    companyName: "",
+    language: "tr",
+};
 
 export const SettingsView = () => {
-    const [config, setConfig] = useState<any>(null);
+    const addAlert = useAgentStore((s) => s.addAlert);
+    const [client, setClient] = useState<ClientData | null>(null);
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
-
-    // For Client Info (in a real app, Client would have its own PUT endpoint, but here we just show it or combine)
-    const [client, setClient] = useState<any>(null);
-
-    const [form, setForm] = useState({
-        agentPersona: "",
-        tone: "Kibar, profesyonel, güven verici",
-        companyContext: "",
-        supportInstructions: ""
-    });
+    const [form, setForm] = useState<TenantConfigData>(DEFAULT_FORM);
 
     useEffect(() => {
         setLoading(true);
-        // Using "default" or fetching current tenant config
-        fetch("/api/tenant/config") // In a real app we'd pass headers or auth session
+        fetch("/api/tenant/config")
             .then(r => r.json())
-            .then(data => {
+            .then((data: TenantConfigResponse) => {
                 if (data.success) {
-                    setConfig(data.config);
                     setClient(data.client);
                     if (data.config) {
                         setForm({
                             agentPersona: data.config.agentPersona || "",
-                            tone: data.config.tone || "Kibar, profesyonel, güven verici",
+                            tone: data.config.tone || DEFAULT_FORM.tone,
                             companyContext: data.config.companyContext || "",
-                            supportInstructions: data.config.supportInstructions || ""
+                            supportInstructions: data.config.supportInstructions || "",
+                            companyName: data.config.companyName || "",
+                            language: data.config.language || "tr",
                         });
                     }
                 }
             })
+            .catch(() => addAlert({ message: "Ayarlar yüklenemedi.", type: "error" }))
             .finally(() => setLoading(false));
-    }, []);
+    }, [addAlert]);
 
     const handleSave = async () => {
         setSaving(true);
@@ -46,14 +69,15 @@ export const SettingsView = () => {
             const res = await fetch("/api/tenant/config", {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(form)
+                body: JSON.stringify(form),
             });
             if (res.ok) {
-                alert("Ayarlar başarıyla kaydedildi!");
+                addAlert({ message: "Ayarlar başarıyla kaydedildi.", type: "success" });
+            } else {
+                addAlert({ message: "Kayıt sırasında hata oluştu.", type: "error" });
             }
-        } catch (err) {
-            console.error(err);
-            alert("Kayıt sırasında hata oluştu!");
+        } catch {
+            addAlert({ message: "Kayıt sırasında hata oluştu.", type: "error" });
         }
         setSaving(false);
     };
@@ -84,8 +108,34 @@ export const SettingsView = () => {
             {/* Content */}
             <div className="flex-1 overflow-y-auto p-6 scrollbar-thin">
                 <div className="max-w-3xl space-y-6">
-                    {/* Persona */}
+                    {/* Company Name */}
                     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="p-4 rounded border border-white/5 bg-white/[0.02]">
+                        <h2 className="font-mono text-xs text-white/80 mb-3">Şirket Adı</h2>
+                        <input
+                            type="text"
+                            value={form.companyName}
+                            onChange={(e) => setForm({ ...form, companyName: e.target.value })}
+                            placeholder="Örn: Agent Matrix A.Ş."
+                            className="w-full bg-[#090e1a] border border-white/10 rounded p-3 font-mono text-[11px] text-white/70 focus:border-neon-blue outline-none"
+                        />
+                    </motion.div>
+
+                    {/* Language */}
+                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="p-4 rounded border border-white/5 bg-white/[0.02]">
+                        <h2 className="font-mono text-xs text-white/80 mb-3">Yanıt Dili</h2>
+                        <select
+                            value={form.language}
+                            onChange={(e) => setForm({ ...form, language: e.target.value })}
+                            className="w-full bg-[#090e1a] border border-white/10 rounded px-3 py-2 font-mono text-[11px] text-white/70 focus:border-neon-blue outline-none"
+                        >
+                            <option value="tr">Türkçe</option>
+                            <option value="de">Almanca</option>
+                            <option value="en">İngilizce</option>
+                        </select>
+                    </motion.div>
+
+                    {/* Persona */}
+                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="p-4 rounded border border-white/5 bg-white/[0.02]">
                         <h2 className="font-mono text-xs text-white/80 mb-3">AI Ajan Personası (System Prompt)</h2>
                         <textarea
                             value={form.agentPersona}
@@ -96,7 +146,7 @@ export const SettingsView = () => {
                     </motion.div>
 
                     {/* Tone */}
-                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="p-4 rounded border border-white/5 bg-white/[0.02]">
+                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="p-4 rounded border border-white/5 bg-white/[0.02]">
                         <h2 className="font-mono text-xs text-white/80 mb-3">İletişim Tonu</h2>
                         <select
                             value={form.tone}
@@ -121,7 +171,7 @@ export const SettingsView = () => {
                     </motion.div>
 
                     {/* Support Instructions */}
-                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="p-4 rounded border border-white/5 bg-white/[0.02]">
+                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }} className="p-4 rounded border border-white/5 bg-white/[0.02]">
                         <h2 className="font-mono text-xs text-white/80 mb-3">Destek Şablonu Yönergeleri</h2>
                         <textarea
                             value={form.supportInstructions}

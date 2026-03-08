@@ -36,11 +36,11 @@ export const ChatMessageBubble = ({ message }: Props) => {
                 className="flex justify-end mb-3"
             >
                 <div className="max-w-[78%]">
-                    <div className="font-mono text-[8px] text-white/25 text-right mb-1 tracking-wider">
-                        YOU · {message.timestamp}
+                    <div className="font-mono text-[9px] text-white/45 text-right mb-1 tracking-wider">
+                        SEN · {message.timestamp}
                     </div>
-                    <div className="bg-neon-green/8 border border-neon-green/15 rounded-lg rounded-tr-sm px-3.5 py-2.5">
-                        <p className="font-mono text-[11px] text-white/85 leading-relaxed">{message.content}</p>
+                    <div className="bg-neon-green/12 border border-neon-green/25 rounded-xl rounded-tr-sm px-4 py-3">
+                        <p className="font-mono text-[12px] text-white/90 leading-relaxed">{message.content}</p>
                     </div>
                 </div>
             </motion.div>
@@ -55,9 +55,9 @@ export const ChatMessageBubble = ({ message }: Props) => {
                 transition={{ duration: 0.2 }}
                 className="flex justify-center mb-3"
             >
-                <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-cyber-amber/8 border border-cyber-amber/20">
-                    <AlertTriangle size={10} className="text-cyber-amber shrink-0" />
-                    <span className="font-mono text-[9px] text-cyber-amber tracking-wide">{message.content}</span>
+                <div className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-cyber-amber/12 border border-cyber-amber/35">
+                    <AlertTriangle size={11} className="text-cyber-amber shrink-0" />
+                    <span className="font-mono text-[10px] text-cyber-amber font-semibold tracking-wide">{message.content}</span>
                 </div>
             </motion.div>
         );
@@ -71,9 +71,9 @@ export const ChatMessageBubble = ({ message }: Props) => {
                 transition={{ duration: 0.2 }}
                 className="flex justify-center mb-3"
             >
-                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/4 border border-white/8">
-                    <Info size={9} className="text-white/30 shrink-0" />
-                    <span className="font-mono text-[9px] text-white/35 tracking-wide">{message.content}</span>
+                <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/8 border border-white/15">
+                    <Info size={10} className="text-white/55 shrink-0" />
+                    <span className="font-mono text-[10px] text-white/60 tracking-wide">{message.content}</span>
                 </div>
             </motion.div>
         );
@@ -92,16 +92,16 @@ export const ChatMessageBubble = ({ message }: Props) => {
             className="flex gap-2.5 mb-3"
         >
             {/* Avatar */}
-            <div className="shrink-0 w-7 h-7 rounded border border-white/10 flex items-center justify-center text-sm bg-white/3 mt-0.5">
+            <div className="shrink-0 w-8 h-8 rounded-lg border border-white/15 flex items-center justify-center text-base bg-white/8 mt-0.5">
                 {agent?.icon ?? "🤖"}
             </div>
 
             <div className="flex-1 min-w-0">
-                <div className={`font-mono text-[8px] mb-1 tracking-wider ${colorClass}`}>
+                <div className={`font-mono text-[9px] mb-1 tracking-wider font-semibold ${colorClass}`}>
                     {agent?.shortLabel ?? "SYSTEM"} · {message.timestamp}
                 </div>
-                <div className="bg-neon-blue/4 border border-neon-blue/10 rounded-lg rounded-tl-sm px-3.5 py-2.5">
-                    <p className="font-mono text-[11px] text-white/75 leading-relaxed">{message.content}</p>
+                <div className="bg-neon-blue/8 border border-neon-blue/18 rounded-xl rounded-tl-sm px-4 py-3">
+                    <p className="font-mono text-[12px] text-white/85 leading-relaxed">{message.content}</p>
                 </div>
             </div>
         </motion.div>

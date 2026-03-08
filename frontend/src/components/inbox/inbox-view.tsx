@@ -64,14 +64,14 @@ export const InboxView = () => {
     return (
         <div className="flex flex-col h-full">
             {/* Header */}
-            <div className="flex items-center justify-between px-5 py-3 border-b border-white/5 shrink-0">
-                <div className="flex items-center gap-2">
-                    <Inbox size={14} className="text-white/40" />
-                    <span className="font-mono text-[10px] font-bold text-white/60 uppercase tracking-widest">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 shrink-0">
+                <div className="flex items-center gap-3">
+                    <Inbox size={16} className="text-neon-blue/70" />
+                    <span className="font-mono text-[13px] font-bold text-white/85 uppercase tracking-widest">
                         Inbox
                     </span>
                     {totalCount > 0 && (
-                        <span className="px-1.5 py-0.5 rounded-full bg-alert-red font-mono text-[7px] font-bold text-white">
+                        <span className="px-2 py-0.5 rounded-full bg-alert-red font-mono text-[9px] font-bold text-white">
                             {totalCount}
                         </span>
                     )}
@@ -79,28 +79,28 @@ export const InboxView = () => {
                 <button
                     onClick={refresh}
                     disabled={loading}
-                    className="p-1.5 rounded hover:bg-white/5 text-white/30 hover:text-white/60 transition-colors disabled:opacity-30"
+                    className="p-2 rounded-lg hover:bg-white/8 text-white/50 hover:text-white/80 transition-colors disabled:opacity-30"
                 >
-                    <RefreshCw size={12} className={loading ? "animate-spin" : ""} />
+                    <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
                 </button>
             </div>
 
             {/* Tabs */}
-            <div className="flex gap-1 px-4 py-2.5 border-b border-white/5 shrink-0">
+            <div className="flex gap-1.5 px-5 py-3 border-b border-white/10 shrink-0">
                 {tabs.map(({ key, label, count }) => (
                     <button
                         key={key}
                         onClick={() => setActiveTab(key)}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded font-mono text-[9px] tracking-wider transition-colors
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg font-mono text-[10px] font-semibold tracking-wider transition-colors
                             ${activeTab === key
-                                ? "bg-white/8 text-white/80"
-                                : "text-white/30 hover:text-white/50 hover:bg-white/4"
+                                ? "bg-neon-blue/15 border border-neon-blue/30 text-neon-blue"
+                                : "text-white/50 hover:text-white/75 hover:bg-white/6 border border-transparent"
                             }`}
                     >
                         {label}
                         {count > 0 && (
-                            <span className={`min-w-[14px] h-3.5 px-1 rounded-full font-mono text-[7px] flex items-center justify-center
-                                ${activeTab === key ? "bg-white/20 text-white/90" : "bg-white/10 text-white/40"}`}>
+                            <span className={`min-w-[16px] h-4 px-1.5 rounded-full font-mono text-[8px] flex items-center justify-center font-bold
+                                ${activeTab === key ? "bg-neon-blue/25 text-neon-blue" : "bg-white/12 text-white/60"}`}>
                                 {count}
                             </span>
                         )}
@@ -109,7 +109,7 @@ export const InboxView = () => {
             </div>
 
             {/* Card list */}
-            <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-2.5 scrollbar-hide">
+            <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-3 scrollbar-styled">
                 {/* HITL */}
                 {showHitl && hasHitl && threadId && (
                     <HitlCard
@@ -135,19 +135,19 @@ export const InboxView = () => {
 
                 {/* Empty state */}
                 {totalCount === 0 && (
-                    <div className="flex flex-col items-center justify-center flex-1 gap-3 text-center py-12">
-                        <Inbox size={32} className="text-white/10" />
+                    <div className="flex flex-col items-center justify-center flex-1 gap-4 text-center py-16">
+                        <Inbox size={40} className="text-white/20" />
                         <div>
-                            <p className="font-mono text-[11px] text-white/20">No pending items</p>
-                            <p className="font-mono text-[9px] text-white/12 mt-1">
-                                New missions and support tickets will appear here
+                            <p className="font-mono text-[13px] text-white/45 font-semibold">Bekleyen öğe yok</p>
+                            <p className="font-mono text-[10px] text-white/30 mt-2">
+                                Yeni görevler ve destek talepleri burada görünecek
                             </p>
                         </div>
                         <button
                             onClick={() => setActiveView("chat")}
-                            className="font-mono text-[9px] text-neon-blue/50 hover:text-neon-blue transition-colors mt-2"
+                            className="font-mono text-[10px] text-neon-blue/60 hover:text-neon-blue transition-colors mt-1 font-semibold"
                         >
-                            ← Back to Command Center
+                            ← Command Center'a Dön
                         </button>
                     </div>
                 )}
