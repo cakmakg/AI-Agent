@@ -4,7 +4,7 @@ import { publishCampaign } from "../agents/cmoAgent.js";
 export const getPendingCampaigns = async (req, res) => {
     try {
         const campaigns = await CampaignDraft
-            .find({ status: "AWAITING_APPROVAL", clientId: req.clientId })
+            .find({ status: "AWAITING_APPROVAL" })
             .sort({ createdAt: -1 })
             .limit(20)
             .lean();
@@ -17,8 +17,8 @@ export const getPendingCampaigns = async (req, res) => {
 
 export const getCampaignDetails = async (req, res) => {
     try {
-        const campaign = await CampaignDraft.findOne({ _id: req.params.id, clientId: req.clientId }).lean();
-        if (!campaign) return res.status(404).json({ error: "Campaign not found or access denied" });
+        const campaign = await CampaignDraft.findOne({ _id: req.params.id }).lean();
+        if (!campaign) return res.status(404).json({ error: "Campaign not found" });
         res.json(campaign);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -28,8 +28,8 @@ export const getCampaignDetails = async (req, res) => {
 export const approveCampaign = async (req, res) => {
     try {
         const { isApproved, feedback } = req.body;
-        const campaign = await CampaignDraft.findOne({ _id: req.params.id, clientId: req.clientId });
-        if (!campaign) return res.status(404).json({ error: "Campaign not found or access denied" });
+        const campaign = await CampaignDraft.findOne({ _id: req.params.id });
+        if (!campaign) return res.status(404).json({ error: "Campaign not found" });
 
         if (isApproved) {
             publishCampaign(campaign).catch(err =>

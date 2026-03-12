@@ -4,6 +4,7 @@ import { fetchUnreadEmails, markAsRead } from "../services/gmailService.js";
 import { processIncomingMessage } from "../agents/customerBotAgent.js";
 import { SupportTicket } from "../models/SupportTicket.js";
 import { TenantConfig } from "../models/TenantConfig.js";
+import { Client } from "../models/Client.js";
 import { runHotLeadWorkflow } from "../workflows/runner.js";
 
 async function pollGmailInbox() {
@@ -26,13 +27,24 @@ async function pollGmailInbox() {
             }
 
             const tagMatch = email.body.match(/\[CLIENT:([^\]]+)\]/i) || email.subject.match(/\[CLIENT:([^\]]+)\]/i);
-            const clientId = tagMatch ? tagMatch[1].trim() : (process.env.DEFAULT_CLIENT_ID || "default");
+            const clientSlug = tagMatch ? tagMatch[1].trim() : (process.env.DEFAULT_CLIENT_ID || "default");
 
-            let tenantConfig = await TenantConfig.findOne({ clientId }).lean();
-            if (!tenantConfig && clientId !== "default") {
-                console.warn(`   ⚠️ [GMAIL] Gelen maildeki Client ID (${clientId}) bulunamadı. Default ayarlara düşülüyor.`);
-                tenantConfig = await TenantConfig.findOne({ clientId: "default" }).lean();
+            let tenantConfig = null;
+            try {
+                const client = await Client.findOne({ $or: [{ slug: clientSlug }, { apiKey: clientSlug }] }).lean();
+                if (client) {
+                    tenantConfig = await TenantConfig.findOne({ clientId: client._id }).lean();
+                }
+                if (!tenantConfig) {
+                    const defaultClient = await Client.findOne({ slug: "default" }).lean();
+                    if (defaultClient) {
+                        tenantConfig = await TenantConfig.findOne({ clientId: defaultClient._id }).lean();
+                    }
+                }
+            } catch (lookupErr) {
+                console.warn(`   ⚠️ [GMAIL] TenantConfig lookup başarısız — devam ediliyor:`, lookupErr.message);
             }
+            const clientId = clientSlug;
 
             const fullMessage = `Konu: ${email.subject}\nGonderen: ${email.from}\n\n${email.body}`;
             const analysis = await processIncomingMessage(fullMessage, clientId, tenantConfig);

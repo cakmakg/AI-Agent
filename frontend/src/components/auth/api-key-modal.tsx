@@ -67,10 +67,18 @@ export const ApiKeyModal = () => {
                         >
                             CONNECT TO WORKSPACE
                         </button>
+
+                        <button
+                            type="button"
+                            onClick={() => { if (typeof window !== "undefined") { localStorage.removeItem("ai_orchestra_api_key"); } setApiKey("default"); }}
+                            className="w-full py-2 font-mono text-[11px] text-white/40 hover:text-white/70 transition-colors tracking-wider"
+                        >
+                            Skip — Use Default Tenant
+                        </button>
                     </form>
 
                     <p className="text-center font-mono text-[10px] text-white/30 mt-4 leading-relaxed">
-                        API keys are provided by your System Administrator and are securely scoped to your company's data. If you lost your key, please contact support.
+                        Multi-tenant key yoksa "Skip — Use Default Tenant" ile devam edebilirsin.
                     </p>
                 </motion.div>
             </div>

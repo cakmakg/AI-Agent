@@ -23,7 +23,7 @@ const blueprintSchema = z.object({
 
 const llmWithStructuredOutput = llm.withStructuredOutput(blueprintSchema, { name: "generate_project_blueprint" });
 
-export async function architectNode(state) {
+export async function architectNode(state, config) {
     console.log("👨‍🏫 Baş Mimar (Ajan 8 - CTO) masaya oturdu. Proje mimarisi çiziliyor...");
 
     const prompt = `Sie sind der Chief Technology Officer (CTO) und Senior Software Architect (Ajan 8) für ein Elite-Entwicklungsteam.

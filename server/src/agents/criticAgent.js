@@ -22,7 +22,7 @@ const llmWithStructuredOutput = llm.withStructuredOutput(criticSchema, {
     name: "evaluate_content",
 });
 
-export async function criticNode(state) {
+export async function criticNode(state, config) {
     console.log("🧐 Eleştirmen Ajan (Ajan 5) devrede. Metin denetleniyor...");
 
     // Acımasız Alman Kalite Kontrolcü Promptu

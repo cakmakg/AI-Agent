@@ -3,7 +3,7 @@ import { trackLLMCost } from "../services/costTracker.js";
 
 // Ajan 2'nin Beyni (Yine Claude veya ileride değiştirebileceğimiz bir model)
 const llm = new ChatBedrockConverse({
-    model: "eu.anthropic.claude-haiku-3-5-20251001-v1:0",
+    model: "eu.anthropic.claude-sonnet-4-5-20250929-v1:0",
     region: process.env.AWS_REGION,
     credentials: {
         accessKeyId: process.env.AWS_ACCESS_KEY_ID,
@@ -29,8 +29,8 @@ export async function analyzerNode(state) {
     trackLLMCost(
         response.usage_metadata?.input_tokens || 0,
         response.usage_metadata?.output_tokens || 0,
-        "ANALYZER", state.threadId || "SYSTEM", config?.configurable?.tenantConfig?.clientId || "default",
-        "eu.anthropic.claude-haiku-3-5-20251001-v1:0"
+        "ANALYZER", state.threadId || "SYSTEM", "default",
+        "eu.anthropic.claude-sonnet-4-5-20250929-v1:0"
     ).catch(() => { });
 
     console.log("✅ Analiz Motoru: Rapor hazırlandı!");

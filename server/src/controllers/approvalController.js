@@ -8,8 +8,8 @@ export const handleApproval = async (req, res) => {
         if (!threadId) return res.status(400).json({ error: "Lütfen threadId belirtin." });
 
         if (category !== "SUPPORT_BUG" && category !== "SUPPORT_PRICING") {
-            const exists = await Report.exists({ threadId, clientId: req.clientId });
-            if (!exists) return res.status(403).json({ error: "You don't have permission to approve this thread." });
+            const exists = await Report.exists({ threadId });
+            if (!exists) return res.status(403).json({ error: "Report not found for this thread." });
         }
 
         if (category === "SUPPORT_BUG" || category === "SUPPORT_PRICING") {

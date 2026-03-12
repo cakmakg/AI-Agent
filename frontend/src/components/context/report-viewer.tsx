@@ -12,12 +12,49 @@ interface Props {
 }
 
 export const ReportViewer = ({ threadId }: Props) => {
-    const { pendingContent, approveMission, rejectMission, workflowPhase, setDrawerItem } = useAgentStore();
+    const { pendingContent, threadId: storeThreadId, approveMission, rejectMission, workflowPhase, setDrawerItem, apiKey } = useAgentStore();
     const [feedback, setFeedback] = useState("");
     const [rejectMode, setRejectMode] = useState(false);
     const [submitting, setSubmitting] = useState(false);
+    const [fetchedContent, setFetchedContent] = useState<string | null>(null);
+    const [fetching, setFetching] = useState(false);
 
-    const content = pendingContent ?? "";
+    // Sync store threadId when viewing a DB report (so Authorize uses correct threadId)
+    useEffect(() => {
+        if (threadId && threadId !== storeThreadId) {
+            useAgentStore.setState({
+                threadId,
+                workflowPhase: "AWAITING_APPROVAL",
+                missionCategory: "HOT_LEAD",
+            });
+        }
+    }, [threadId, storeThreadId]);
+
+    // Auto-fetch content from MongoDB when pendingContent is empty for this thread
+    useEffect(() => {
+        if (pendingContent?.trim()) {
+            setFetchedContent(null);
+            return;
+        }
+        setFetching(true);
+        setFetchedContent(null);
+        const headers = {};
+        if (apiKey) headers["x-api-key"] = apiKey;
+        fetch("/api/artifact/" + threadId, { headers })
+            .then((r) => r.json())
+            .then((data) => {
+                const text = (data.content || "").trim();
+                setFetchedContent(text || "*(Icerik bulunamadi)*");
+                if (text) {
+                    useAgentStore.setState({ pendingContent: text, workflowPhase: "AWAITING_APPROVAL" });
+                }
+            })
+            .catch(() => setFetchedContent("*(Icerik yuklenemedi)*"))
+            .finally(() => setFetching(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [threadId]);
+
+    const content = (pendingContent || "").trim() || fetchedContent || "";
     const isPublishing = workflowPhase === "PUBLISHING" || workflowPhase === "DELIVERED";
 
     const handleApprove = async () => {
@@ -52,7 +89,12 @@ export const ReportViewer = ({ threadId }: Props) => {
 
             {/* Content */}
             <div className="flex-1 overflow-y-auto px-4 py-3 scrollbar-hide">
-                {content ? (
+                {fetching ? (
+                    <div className="flex items-center justify-center h-32 gap-2 text-white/25">
+                        <Loader2 size={14} className="animate-spin" />
+                        <span className="font-mono text-[10px]">Loading report from database...</span>
+                    </div>
+                ) : content ? (
                     <div className="prose prose-invert prose-sm max-w-none
                         prose-headings:font-mono prose-headings:text-white/80 prose-headings:text-xs
                         prose-p:text-white/60 prose-p:text-[11px] prose-p:leading-relaxed
@@ -118,7 +160,7 @@ export const ReportViewer = ({ threadId }: Props) => {
                                     whileHover={{ scale: 1.02 }}
                                     whileTap={{ scale: 0.98 }}
                                     onClick={handleApprove}
-                                    disabled={submitting}
+                                    disabled={submitting || fetching}
                                     className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded font-mono text-[9px] font-bold uppercase tracking-wider
                                                bg-neon-green/10 border border-neon-green/40 text-neon-green hover:bg-neon-green/20
                                                hover:border-neon-green/60 hover:shadow-[0_0_20px_rgba(57,255,20,0.15)]

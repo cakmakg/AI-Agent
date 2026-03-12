@@ -14,9 +14,7 @@ export const CronTimer = () => {
             useAgentStore.setState((state) => {
                 const next = state.cronSecondsLeft - 1;
                 if (next <= 0) {
-                    // Auto-trigger R&D scan
-                    state.forceRdScan();
-                    return { cronSecondsLeft: 120 };
+                    return { cronSecondsLeft: 0 };
                 }
                 return { cronSecondsLeft: next };
             });

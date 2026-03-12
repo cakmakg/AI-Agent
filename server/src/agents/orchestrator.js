@@ -1,7 +1,7 @@
 import { ChatBedrockConverse } from "@langchain/aws";
 import { z } from "zod";
 import { trackLLMCostFromStrings } from "../services/costTracker.js";
-import { SKILL_REGISTRY, getEnabledTools } from "../skills/index.js";
+import { getEnabledTools } from "../skills/index.js";
 
 const llm = new ChatBedrockConverse({
     model: "eu.anthropic.claude-sonnet-4-5-20250929-v1:0",
@@ -31,16 +31,52 @@ export async function orchestratorNode(state, config) {
     // Bu kurallar LLM'den önce çalışır ve inatlaşmayı kesin olarak önler.
     // ==========================================
 
-    // FREN 1: Eğer CTO (Architect) planı yazıp kaydettiyse ve yargıç henüz bakmadıysa, doğrudan yargıca git!
-    if (state.fileSaved && state.finalContent && state.finalContent.includes("Architektur-Blueprint") && state.humanApproval === null) {
-        console.log("   -> ⚡ SİSTEM MÜDAHALESİ: Blueprint başarıyla diske yazıldı. Doğrudan Yargıca gidiliyor.");
+    // FREN 1: Yayın tamamlandıysa → END (tekrar döngüye girmesin)
+    if (state.isPublished === true) {
+        console.log("   -> ⚡ SİSTEM MÜDAHALESİ: Yayın tamamlandı → END.");
+        return { nextAgent: "END" };
+    }
+
+    // FREN 2: Dosya kaydedildi ve yargıç henüz bakmadı → doğrudan HITL'e git (LLM'e bırakma!)
+    if (state.fileSaved === true && (state.humanApproval === null || state.humanApproval === undefined)) {
+        console.log("   -> ⚡ SİSTEM MÜDAHALESİ: Dosya kaydedildi → doğrudan Yargıca gidiliyor.");
         return { nextAgent: "human_approval" };
     }
 
-    // FREN 2: Genel Döngü Sınırı (Sistem 5 kereden fazla kendi içinde dönerse fişi çek ve yargıca sor)
+    // FREN 3: Genel Döngü Sınırı (Writer↔Critic döngüsü 5 kez dönerse fişi çek)
     if (state.revisionCount >= 5) {
         console.log("   -> ⚡ SİSTEM MÜDAHALESİ: Maksimum deneme sınırına ulaşıldı! Yargıç onayına zorlanıyor.");
         return { nextAgent: "human_approval" };
+    }
+
+    // ==========================================
+    // 🛑 FREN 4 & 5: Research-Track Döngü Kırıcı
+    // LLM bazen gerekçesinde "writer" der ama structured output olarak "analyzer" döner.
+    // Bu deterministik kurallar LLM tutarsızlığını tamamen engeller.
+    // ==========================================
+    const taskText = state.task || "";
+    const isInnovationRadar = /INNOVATION_RADAR/i.test(taskText);
+    const isSocialMedia    = /TWITTER|LINKEDIN/i.test(taskText);
+    const isCodingProject  = /\b(Code|Dashboard|Software|App|Blueprint|Next\.js)\b/i.test(taskText);
+    const isResearchTrack  = !isInnovationRadar && !isSocialMedia && !isCodingProject;
+
+    // FREN 4: Analiz tamamlandı, içerik henüz yazılmadı → doğrudan Writer
+    // (scrapedData şartı yok: n8n'den gelen HOT_LEAD'lerde scraper atlanabilir)
+    if (isResearchTrack && state.analysisReport && !state.finalContent && !state.fileSaved) {
+        console.log("   -> ⚡ FREN 4: Analiz tamam, içerik yok → doğrudan Writer'a.");
+        return { nextAgent: "writer" };
+    }
+
+    // FREN 5: Scraping tamamlandı, analiz eksik, içerik yok → doğrudan Analyzer
+    if (isResearchTrack && state.scrapedData && !state.analysisReport && !state.finalContent) {
+        console.log("   -> ⚡ FREN 5: Scraping tamam, analiz eksik → doğrudan Analyzer'a.");
+        return { nextAgent: "analyzer" };
+    }
+
+    // FREN 6: Revisions sınırı — Critic reddi bile olsa revisionCount >= 3 ise fileSaver
+    if (state.finalContent && state.revisionCount >= 3 && !state.fileSaved) {
+        console.log("   -> ⚡ FREN 6: Revizyon sınırına ulaşıldı (>= 3) → fileSaver'a zorlanıyor.");
+        return { nextAgent: "fileSaver" };
     }
 
 

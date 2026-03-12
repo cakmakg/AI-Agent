@@ -2,15 +2,49 @@ import mongoose from "mongoose";
 
 const SupportTicketSchema = new mongoose.Schema(
     {
+        // ── n8n: Platform bağımsız tekil kimlik (idempotency) ──
+        platform_id: {
+            type: String,
+            sparse: true,
+            unique: true,
+            index: true,
+        },
+        // ── n8n: Kaynak platform (gmail|youtube|slack|instagram|twitter|tiktok) ──
+        platform: {
+            type: String,
+            default: "gmail",
+        },
+        // ── n8n: Gönderen görünen adı ──
+        author: {
+            type: String,
+            default: "",
+        },
+        // ── n8n: Orijinal n8n kategori etiketi ──
+        n8nCategory: {
+            type: String,
+            default: "",
+        },
+        // ── n8n: AI özeti ──
+        aiSummary: {
+            type: String,
+            default: "",
+        },
+        // ── Öncelik seviyesi ──
+        priority: {
+            type: String,
+            enum: ["critical", "high", "medium", "low"],
+            default: "medium",
+        },
+        // ── Gmail uyumluluğu (opsiyonel, sadece gmail için) ──
         emailMessageId: {
             type: String,
-            required: true,
+            sparse: true,
             unique: true,
             index: true,
         },
         gmailThreadId: {
             type: String,
-            required: true,
+            default: "",
         },
         clientId: {
             type: String,

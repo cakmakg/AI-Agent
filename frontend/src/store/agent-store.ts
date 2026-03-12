@@ -66,8 +66,16 @@ export interface RagSource {
 
 export interface SupportTicketSummary {
     _id: string;
-    emailMessageId: string;
-    gmailThreadId: string;
+    // ── n8n platform alanları ──
+    platform: string;           // gmail | youtube | slack | instagram | twitter | tiktok
+    platform_id?: string;
+    author?: string;
+    n8nCategory?: string;       // ACIL_DESTEK | SIKAYET_IADE | FIYAT_SORUSTURMASI | ...
+    aiSummary?: string;
+    priority?: "critical" | "high" | "medium" | "low";
+    // ── eski alanlar (geriye dönük uyumluluk) ──
+    emailMessageId?: string;
+    gmailThreadId?: string;
     from: string;
     subject: string;
     category: "SUPPORT_PRICING" | "SUPPORT_BUG";
@@ -112,7 +120,7 @@ interface AgentStore {
     threadId: string | null;
     pendingContent: string | null;
     missionMessage: string | null;
-    missionCategory: "HOT_LEAD" | "SUPPORT" | null;
+    missionCategory: "HOT_LEAD" | "CTO" | "SUPPORT" | null;
 
     // ── Logs & Alerts ──
     logs: LogEntry[];
@@ -297,7 +305,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
             const res = await fetch("/api/inbox", {
                 method: "POST",
                 headers,
-                body: JSON.stringify({ message }),
+                body: JSON.stringify({ message, source: "operator" }),
             });
 
             const data = await res.json();
@@ -364,6 +372,10 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
                         }
                         get().setAgentStatus(agentId, "ACTIVE");
                         get().setActiveAgent(agentId);
+                        // Upgrade category to CTO when architect agent fires
+                        if (agentId === "cto") {
+                            set({ missionCategory: "CTO" });
+                        }
                         const label = agentLabels[agentId] ?? "Agent activated";
                         addLog({ timestamp: getTimestamp(), agent: agentId.toUpperCase(), message: label, level: "INFO" });
                         get().addChatMessage({ role: "agent", agentId, content: label, timestamp: getTimestamp() });
@@ -381,16 +393,21 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
                             get().addChatMessage({ role: "alert", content: "Rapor hazır — HITL onayı bekleniyor. Inbox'tan inceleyin.", timestamp: getTimestamp(), phase: "AWAITING_APPROVAL" });
 
                             const content = event.pendingContent?.trim();
+                            const currentThreadId = get().threadId;
 
                             if (content) {
                                 // İçerik SSE ile geldi — direkt kullan
-                                set({ pendingContent: content, workflowPhase: "AWAITING_APPROVAL" });
+                                set({
+                                    pendingContent: content,
+                                    workflowPhase: "AWAITING_APPROVAL",
+                                    drawerItem: { type: "report", threadId: currentThreadId! },
+                                });
+                                get().fetchMissions();
                                 addLog({ timestamp: getTimestamp(), agent: "SYSTEM", message: "Workflow complete. Awaiting HITL authorization.", level: "WARN" });
                                 addAlert({ message: "MISSION COMPLETE — AWAITING YOUR AUTHORIZATION", type: "warning" });
                             } else {
                                 // İçerik boş — MongoDB'den çek (CTO/architect akışları)
                                 addLog({ timestamp: getTimestamp(), agent: "SYSTEM", message: "Workflow complete. Fetching artifact from MongoDB...", level: "WARN" });
-                                const currentThreadId = get().threadId;
                                 const url = currentThreadId
                                     ? `/api/artifact/${currentThreadId}`
                                     : `/api/artifact/latest`;
@@ -403,11 +420,20 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
                                     .then((r) => r.json())
                                     .then((artifact) => {
                                         const fetched = artifact.content?.trim() || "*(İçerik hazır — yeniden yükleyin)*";
-                                        set({ pendingContent: fetched, workflowPhase: "AWAITING_APPROVAL" });
+                                        set({
+                                            pendingContent: fetched,
+                                            workflowPhase: "AWAITING_APPROVAL",
+                                            drawerItem: { type: "report", threadId: currentThreadId! },
+                                        });
+                                        get().fetchMissions();
                                         addAlert({ message: "MISSION COMPLETE — AWAITING YOUR AUTHORIZATION", type: "warning" });
                                     })
                                     .catch(() => {
-                                        set({ pendingContent: "*(Blueprint hazır — Pull Intel ile yükleyin)*", workflowPhase: "AWAITING_APPROVAL" });
+                                        set({
+                                            pendingContent: "*(Blueprint hazır — Pull Intel ile yükleyin)*",
+                                            workflowPhase: "AWAITING_APPROVAL",
+                                            drawerItem: { type: "report", threadId: currentThreadId! },
+                                        });
                                         addAlert({ message: "MISSION COMPLETE — AWAITING YOUR AUTHORIZATION", type: "warning" });
                                     });
                             }
@@ -495,7 +521,6 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
                 setTimeout(() => {
                     get().resetAllAgents();
                     set({ workflowPhase: "IDLE", threadId: null, pendingContent: null, missionMessage: null, missionCategory: null });
-                    get().setActiveAgent(null);
                 }, 4000);
             } else {
                 throw new Error(data.error || "Approval failed");
@@ -546,12 +571,58 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
             }
 
             if (data.success && data.status === "REVISED") {
-                addLog({ timestamp: getTimestamp(), agent: "SYSTEM", message: "Revision complete. New output pending review.", level: "INFO" });
-                setAgentStatus("ceo", "SUCCESS");
-                setWorkflowPhase("AWAITING_APPROVAL");
-                setActiveAgent("hitl");
-                setAgentStatus("hitl", "ACTIVE");
-                addAlert({ message: "REVISION COMPLETE — RE-REVIEW REQUIRED", type: "warning" });
+                addLog({ timestamp: getTimestamp(), agent: "SYSTEM", message: "Revision started — waiting for agents...", level: "INFO" });
+                setAgentStatus("ceo", "ACTIVE");
+                setWorkflowPhase("REVISING");
+                setActiveAgent("ceo");
+                addAlert({ message: "REVISION CYCLE ACTIVE — AGENTS REWRITING...", type: "warning" });
+
+                // Revision workflow arka planda çalışıyor — SSE'yi yeniden aç
+                const revEventSource = new EventSource(`/api/events/${threadId}`);
+                let revPreviousAgent: AgentId | null = "ceo";
+
+                revEventSource.onmessage = (e: MessageEvent) => {
+                    const event = JSON.parse(e.data) as { type: string; agent?: string; pendingContent?: string; message?: string };
+
+                    if (event.type === "agent_active" && event.agent) {
+                        const agentId = event.agent as AgentId;
+                        if (revPreviousAgent && revPreviousAgent !== agentId) {
+                            get().setAgentStatus(revPreviousAgent, "SUCCESS");
+                        }
+                        get().setAgentStatus(agentId, "ACTIVE");
+                        get().setActiveAgent(agentId);
+                        addLog({ timestamp: getTimestamp(), agent: agentId.toUpperCase(), message: "Revising...", level: "INFO" });
+                        revPreviousAgent = agentId;
+                    }
+
+                    if (event.type === "workflow_complete") {
+                        revEventSource.close();
+                        if (revPreviousAgent) get().setAgentStatus(revPreviousAgent, "SUCCESS");
+                        get().setAgentStatus("hitl", "ACTIVE");
+                        get().setActiveAgent("hitl");
+
+                        const content = event.pendingContent?.trim();
+                        set({
+                            pendingContent: content || null,
+                            workflowPhase: "AWAITING_APPROVAL",
+                            drawerItem: { type: "report", threadId },
+                        });
+                        get().fetchMissions();
+                        addLog({ timestamp: getTimestamp(), agent: "SYSTEM", message: "Revision complete — new report ready.", level: "SUCCESS" });
+                        addAlert({ message: "REVISION COMPLETE — RE-REVIEW REQUIRED", type: "warning" });
+                    }
+
+                    if (event.type === "error") {
+                        revEventSource.close();
+                        setWorkflowPhase("AWAITING_APPROVAL");
+                        addAlert({ message: `REVISION ERROR: ${event.message}`, type: "error" });
+                    }
+                };
+
+                revEventSource.onerror = () => {
+                    revEventSource.close();
+                    setWorkflowPhase("AWAITING_APPROVAL");
+                };
             }
         } catch (error) {
             const errMsg = error instanceof Error ? error.message : "Revision failed";
@@ -673,6 +744,9 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
                     }
                     get().setAgentStatus(agentId, "ACTIVE");
                     get().setActiveAgent(agentId);
+                    if (agentId === "cto") {
+                        set({ missionCategory: "CTO" });
+                    }
                     addLog({
                         timestamp: getTimestamp(),
                         agent: agentId.toUpperCase(),
@@ -800,8 +874,8 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
             });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data = await res.json() as { status: string };
-            addLog({ timestamp: getTimestamp(), agent: "SYSTEM", message: `Ticket ${data.status} — ${isApproved ? "reply sent via Gmail" : "rejected"}`, level: "SUCCESS" });
-            addAlert({ message: isApproved ? "Mail yaniti gonderildi!" : "Ticket reddedildi.", type: isApproved ? "success" : "warning" });
+            addLog({ timestamp: getTimestamp(), agent: "SYSTEM", message: `Ticket ${data.status} — ${isApproved ? "reply sent via n8n" : "rejected"}`, level: "SUCCESS" });
+            addAlert({ message: isApproved ? "Yanit n8n üzerinden iletildi!" : "Ticket reddedildi.", type: isApproved ? "success" : "warning" });
             await fetchSupportTickets();
         } catch (err) {
             addAlert({ message: `Support ticket hatasi: ${err instanceof Error ? err.message : String(err)}`, type: "error" });

@@ -5,11 +5,12 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X, PanelRight } from "lucide-react";
 import { useAgentStore } from "@/store/agent-store";
 import { ReportViewer } from "./report-viewer";
+import { BlueprintViewer } from "./blueprint-viewer";
 import { EmailViewer } from "./email-viewer";
 import { CampaignViewer } from "./campaign-viewer";
 
 export const RightPanel = () => {
-    const { drawerItem, setDrawerItem } = useAgentStore();
+    const { drawerItem, setDrawerItem, missionCategory } = useAgentStore();
 
     return (
         <aside className="w-[380px] shrink-0 flex flex-col h-screen bg-[rgba(9,14,26,0.95)] border-l border-white/5 overflow-hidden">
@@ -63,7 +64,9 @@ export const RightPanel = () => {
                             className="absolute inset-0 flex flex-col"
                         >
                             {drawerItem.type === "report" && (
-                                <ReportViewer threadId={drawerItem.threadId} />
+                                missionCategory === "CTO"
+                                    ? <BlueprintViewer threadId={drawerItem.threadId} />
+                                    : <ReportViewer threadId={drawerItem.threadId} />
                             )}
                             {drawerItem.type === "support" && (
                                 <EmailViewer ticket={drawerItem.ticket} />

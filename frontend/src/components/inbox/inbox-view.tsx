@@ -14,10 +14,12 @@ export const InboxView = () => {
         threadId,
         missionMessage,
         pendingContent,
+        missions,
         supportTickets,
         campaignDrafts,
         fetchSupportTickets,
         fetchCampaignDrafts,
+        fetchMissions,
         setDrawerItem,
         setActiveView,
     } = useAgentStore();
@@ -25,13 +27,19 @@ export const InboxView = () => {
     const [activeTab, setActiveTab] = useState<FilterTab>("all");
     const [loading, setLoading] = useState(false);
 
-    const hasHitl = workflowPhase === "AWAITING_APPROVAL" && threadId;
+    // In-memory HITL (active live workflow)
+    const hasInMemoryHitl = workflowPhase === "AWAITING_APPROVAL" && !!threadId;
     const hitlTask = missionMessage ?? "Pending Report";
     const hitlPreview = pendingContent?.slice(0, 160) ?? "Report awaiting review...";
 
+    // DB-backed HITL missions (AWAITING_APPROVAL in MongoDB, not already shown by in-memory card)
+    const dbHitlMissions = missions.filter(
+        (m) => m.status === "AWAITING_APPROVAL" && m.threadId !== threadId
+    );
+
     const refresh = async () => {
         setLoading(true);
-        await Promise.all([fetchSupportTickets(), fetchCampaignDrafts()]);
+        await Promise.all([fetchSupportTickets(), fetchCampaignDrafts(), fetchMissions()]);
         setLoading(false);
     };
 
@@ -49,7 +57,7 @@ export const InboxView = () => {
     const showSupport  = activeTab === "all" || activeTab === "support";
     const showCampaign = activeTab === "all" || activeTab === "campaign";
 
-    const hitlCount     = hasHitl ? 1 : 0;
+    const hitlCount     = (hasInMemoryHitl ? 1 : 0) + dbHitlMissions.length;
     const supportCount  = supportTickets.length;
     const campaignCount = campaignDrafts.filter((c) => c.status === "AWAITING_APPROVAL").length;
     const totalCount    = hitlCount + supportCount + campaignCount;
@@ -110,8 +118,8 @@ export const InboxView = () => {
 
             {/* Card list */}
             <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-3 scrollbar-styled">
-                {/* HITL */}
-                {showHitl && hasHitl && threadId && (
+                {/* HITL — in-memory (active workflow) */}
+                {showHitl && hasInMemoryHitl && threadId && (
                     <HitlCard
                         threadId={threadId}
                         task={hitlTask}
@@ -120,6 +128,18 @@ export const InboxView = () => {
                         onSelect={handleSelect}
                     />
                 )}
+
+                {/* HITL — from MongoDB (persisted, page-reload safe) */}
+                {showHitl && dbHitlMissions.map((m) => (
+                    <HitlCard
+                        key={m.threadId}
+                        threadId={m.threadId}
+                        task={m.task}
+                        contentPreview={m.contentPreview}
+                        createdAt={m.createdAt}
+                        onSelect={handleSelect}
+                    />
+                ))}
 
                 {/* Support Tickets */}
                 {showSupport && supportTickets.map((ticket) => (
@@ -147,7 +167,7 @@ export const InboxView = () => {
                             onClick={() => setActiveView("chat")}
                             className="font-mono text-[10px] text-neon-blue/60 hover:text-neon-blue transition-colors mt-1 font-semibold"
                         >
-                            ← Command Center'a Dön
+                            ← Command Center&apos;a Dön
                         </button>
                     </div>
                 )}

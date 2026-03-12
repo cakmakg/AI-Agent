@@ -2,9 +2,7 @@
 // Kullanicidan Telegram mesaji alir, AI Orchestra'ya isler, sonucu gonderir.
 
 import { v4 as uuidv4 } from "uuid";
-import { processIncomingMessage } from "../agents/customerBotAgent.js";
-import { runHotLeadWorkflow } from "../workflows/runner.js";
-import { agentEventBus } from "../workflows/runner.js";
+import { runHotLeadWorkflow, agentEventBus } from "../workflows/runner.js";
 
 const getBaseUrl = () => `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}`;
 
@@ -29,6 +27,46 @@ async function sendMessage(chatId, text, extra = {}) {
     }
 }
 
+// ── Workflow başlat ve sonucu Telegram'a gönder ──
+async function launchWorkflowAndNotify(chatId, threadId, task) {
+    runHotLeadWorkflow(threadId, task, null)
+        .catch(err => console.error("❌ Telegram workflow hatasi:", err.message));
+
+    let settled = false;
+    const timeout = setTimeout(() => {
+        if (!settled) {
+            settled = true;
+            agentEventBus.removeAllListeners(threadId);
+            sendMessage(chatId, `⏱️ Workflow sürüyor — Cyber-Nexus UI üzerinden takip edebilirsiniz.`);
+        }
+    }, 8 * 60 * 1000);
+
+    const listener = async (event) => {
+        if (settled) return;
+
+        if (event.type === "workflow_complete") {
+            settled = true;
+            clearTimeout(timeout);
+            agentEventBus.removeListener(threadId, listener);
+            const content = event.pendingContent || "";
+            await sendMessage(chatId,
+                `✅ *Workflow Tamamlandı!*\n\n` +
+                `${content.substring(0, 1800) || "Rapor hazır."}\n\n` +
+                `_HITL onayı için Inbox'ı kontrol edin._`
+            );
+        }
+
+        if (event.type === "error") {
+            settled = true;
+            clearTimeout(timeout);
+            agentEventBus.removeListener(threadId, listener);
+            await sendMessage(chatId, `❌ *Workflow Hatası*\n\n${event.message || "Bilinmeyen hata."}`);
+        }
+    };
+
+    agentEventBus.on(threadId, listener);
+}
+
 // ── Gelen mesaji isle ──
 async function handleMessage(message) {
     const chatId = String(message.chat.id);
@@ -44,23 +82,26 @@ async function handleMessage(message) {
     const text = (message.text || "").trim();
     if (!text) return;
 
-    console.log(`\n📱 Telegram Bot: Mesaj alindi — "${text.substring(0, 80)}"`);
+    console.log(`\n📱 Telegram Bot: Patron komutu alindi — "${text.substring(0, 80)}"`);
 
-    // ── Komutlar ──
+    // ── /start veya /help ──
     if (text === "/start" || text === "/help") {
         await sendMessage(chatId,
-            `🤖 *AI Orchestra Bot*\n\n` +
-            `Herhangi bir mesaj gönder, AI Orchestra işlesin:\n\n` +
-            `• *HOT LEAD* mesajları → Tam ajan workflow'u başlatır\n` +
-            `• *Destek/fiyat* soruları → Taslak yanıt hazırlar\n` +
-            `• Diğer → Filtrelenir\n\n` +
+            `🤖 *AI Orchestra — Patron Modu*\n\n` +
+            `Herhangi bir görevi yaz, AI ekibi devreye girer:\n\n` +
+            `Örnekler:\n` +
+            `• _"SaaS startup için pazar giriş stratejisi"_\n` +
+            `• _"Next.js e-commerce mimarisi çiz"_\n` +
+            `• _"Rakip analizi raporu hazırla"_\n\n` +
             `Komutlar:\n` +
             `/status — Sistem durumu\n` +
+            `/rnd — R&D / İnovasyon Radar başlat\n` +
             `/help — Bu yardım mesajı`
         );
         return;
     }
 
+    // ── /status ──
     if (text === "/status") {
         await sendMessage(chatId,
             `✅ *AI Orchestra Aktif*\n\n` +
@@ -72,95 +113,31 @@ async function handleMessage(message) {
         return;
     }
 
-    // ── Mesaji AI Orchestra'ya gonder ──
-    await sendMessage(chatId, `⚡ Mesajınız alındı, analiz ediliyor...`);
-
-    try {
-        const analysis = await processIncomingMessage(text, "default", null);
-
-        // SPAM / OTHER
-        if (analysis.category === "SPAM" || analysis.category === "OTHER") {
-            await sendMessage(chatId,
-                `🚫 *Filtrelendi*\n\nMesaj SPAM veya genel içerik olarak değerlendirildi.\n\nBir iş görevi ya da destek talebi ile tekrar deneyin.`
-            );
-            return;
-        }
-
-        // DESTEK TALEBİ
-        if (analysis.category === "SUPPORT_PRICING" || analysis.category === "SUPPORT_BUG") {
-            const label = analysis.category === "SUPPORT_PRICING" ? "Fiyatlandırma" : "Hata Raporu";
-            const draft = analysis.draftResponse || "Taslak yanıt oluşturulamadı.";
-
-            await sendMessage(chatId,
-                `📧 *${label} Talebi Tespit Edildi*\n\n` +
-                `*Taslak Yanıt:*\n${draft.substring(0, 1500)}\n\n` +
-                `_Onay için Cyber-Nexus Inbox'ı kontrol edin._`
-            );
-            return;
-        }
-
-        // HOT LEAD — workflow baslat
-        if (analysis.category === "HOT_LEAD") {
-            const threadId = uuidv4();
-            await sendMessage(chatId,
-                `🚀 *HOT LEAD Tespit Edildi!*\n\n` +
-                `Görev: ${(analysis.orchestratorTask || text).substring(0, 300)}\n\n` +
-                `Thread: \`${threadId.substring(0, 8)}...\`\n` +
-                `Ajan ekibi devreye alınıyor...`
-            );
-
-            // Workflow'u arka planda baslat
-            runHotLeadWorkflow(threadId, analysis.orchestratorTask, null)
-                .catch(err => console.error("❌ Telegram HOT_LEAD workflow hatasi:", err.message));
-
-            // Sonucu bekle ve gonder
-            let settled = false;
-            const timeout = setTimeout(() => {
-                if (!settled) {
-                    settled = true;
-                    agentEventBus.removeAllListeners(threadId);
-                    sendMessage(chatId, `⏱️ Workflow tamamlanıyor, Cyber-Nexus UI üzerinden takip edebilirsiniz.`);
-                }
-            }, 8 * 60 * 1000); // 8 dakika timeout
-
-            const listener = async (event) => {
-                if (settled) return;
-
-                if (event.type === "workflow_complete") {
-                    settled = true;
-                    clearTimeout(timeout);
-                    agentEventBus.removeListener(threadId, listener);
-
-                    const content = event.pendingContent || "";
-                    const preview = content.substring(0, 1800);
-
-                    await sendMessage(chatId,
-                        `✅ *Workflow Tamamlandı!*\n\n` +
-                        `${preview || "Rapor hazır — Cyber-Nexus Inbox'tan onaylayın."}\n\n` +
-                        `_HITL onayı için Inbox'ı kontrol edin._`
-                    );
-                }
-
-                if (event.type === "error") {
-                    settled = true;
-                    clearTimeout(timeout);
-                    agentEventBus.removeListener(threadId, listener);
-
-                    await sendMessage(chatId, `❌ *Workflow Hatası*\n\n${event.message || "Bilinmeyen hata."}`);
-                }
-            };
-
-            agentEventBus.on(threadId, listener);
-            return;
-        }
-
-        // Beklenmeyen kategori
-        await sendMessage(chatId, `⚠️ Beklenmeyen analiz sonucu. Lütfen tekrar deneyin.`);
-
-    } catch (err) {
-        console.error("❌ Telegram Bot mesaj isleme hatasi:", err.message);
-        await sendMessage(chatId, `❌ *İşlem Hatası*\n\n${err.message}\n\nSunucu loglarını kontrol edin.`);
+    // ── /rnd — R&D Radar ──
+    if (text === "/rnd") {
+        const threadId = uuidv4();
+        const rndTask = "INNOVATION_RADAR: Scan the latest updates from Anthropic (Claude) and OpenAI for developers. Create a Master Blueprint (.md) showing how to integrate these new AI features into our existing architecture.";
+        await sendMessage(chatId,
+            `🔬 *R&D Radar Başlatıldı!*\n\n` +
+            `Thread: \`${threadId.substring(0, 8)}...\`\n` +
+            `Anthropic & OpenAI feed'leri taranıyor...`
+        );
+        await launchWorkflowAndNotify(chatId, threadId, rndTask);
+        return;
     }
+
+    // ── Görev komutu — doğrudan HOT_LEAD olarak işle ──
+    // (customerBotAgent bypass edilir — Patron yetkilendirilmiş tek kullanıcıdır)
+    const threadId = uuidv4();
+    await sendMessage(chatId,
+        `🚀 *Görev Alındı!*\n\n` +
+        `📋 _${text.substring(0, 300)}_\n\n` +
+        `Thread: \`${threadId.substring(0, 8)}...\`\n` +
+        `Ajan ekibi devreye alınıyor...`
+    );
+
+    console.log(`🔥 Telegram Patron Görevi → HOT_LEAD: "${text.substring(0, 80)}"`);
+    await launchWorkflowAndNotify(chatId, threadId, text);
 }
 
 // ── Long Polling Loop ──
@@ -168,7 +145,6 @@ let pollingOffset = 0;
 let isPolling = false;
 
 async function pollOnce() {
-    const token = process.env.TELEGRAM_BOT_TOKEN;
     try {
         const res = await fetch(
             `${getBaseUrl()}/getUpdates?offset=${pollingOffset}&timeout=25&allowed_updates=["message"]`,
