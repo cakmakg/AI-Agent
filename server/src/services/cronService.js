@@ -6,6 +6,7 @@ import { SupportTicket } from "../models/SupportTicket.js";
 import { TenantConfig } from "../models/TenantConfig.js";
 import { Client } from "../models/Client.js";
 import { runHotLeadWorkflow } from "../workflows/runner.js";
+import { appendHotLead } from "../services/googleSheetsService.js";
 
 async function pollGmailInbox() {
     if (!process.env.GOOGLE_REFRESH_TOKEN) return;
@@ -80,6 +81,13 @@ async function pollGmailInbox() {
                 runHotLeadWorkflow(threadId, analysis.orchestratorTask, tenantConfig).catch(err =>
                     console.error("Gmail HOT_LEAD hatasi:", err.message)
                 );
+                appendHotLead({
+                    source: "gmail",
+                    from: email.from,
+                    subject: email.subject,
+                    summary: analysis.analysis || "",
+                    threadId,
+                }).catch(() => {});
                 await markAsRead(email.messageId);
                 console.log(`   🚀 HOT_LEAD workflow baslatildi — threadId: ${threadId} tenant: ${clientId}`);
             }

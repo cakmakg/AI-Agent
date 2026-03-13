@@ -13,7 +13,7 @@ const llm = new ChatBedrockConverse({
 });
 
 const routingSchema = z.object({
-    nextAgent: z.enum(["scraper", "analyzer", "writer", "critic", "fileSaver", "human_approval", "publisher", "architect", "END"])
+    nextAgent: z.enum(["scraper", "analyzer", "innovator", "writer", "critic", "fileSaver", "human_approval", "publisher", "architect", "END"])
         .describe("Welcher Agent als Nächstes aufgerufen wird oder ob der Prozess beendet wird (END)."),
     reason: z.string().describe("Eine kurze Erklärung auf Deutsch.")
 });
@@ -60,10 +60,15 @@ export async function orchestratorNode(state, config) {
     const isCodingProject  = /\b(Code|Dashboard|Software|App|Blueprint|Next\.js)\b/i.test(taskText);
     const isResearchTrack  = !isInnovationRadar && !isSocialMedia && !isCodingProject;
 
-    // FREN 4: Analiz tamamlandı, içerik henüz yazılmadı → doğrudan Writer
-    // (scrapedData şartı yok: n8n'den gelen HOT_LEAD'lerde scraper atlanabilir)
-    if (isResearchTrack && state.analysisReport && !state.finalContent && !state.fileSaved) {
-        console.log("   -> ⚡ FREN 4: Analiz tamam, içerik yok → doğrudan Writer'a.");
+    // FREN 4a: Analiz tamamlandı, Vizyoner henüz çalışmadı → Innovator'a
+    if (isResearchTrack && state.analysisReport && !state.innovatorInsight && !state.finalContent && !state.fileSaved) {
+        console.log("   -> ⚡ FREN 4a: Analiz tamam, Vizyoner bekliyor → Innovator'a.");
+        return { nextAgent: "innovator" };
+    }
+
+    // FREN 4b: Hem analiz hem vizyoner tamam, içerik henüz yok → Writer'a
+    if (isResearchTrack && state.analysisReport && state.innovatorInsight && !state.finalContent && !state.fileSaved) {
+        console.log("   -> ⚡ FREN 4b: Analiz + Vizyoner tamam, içerik yok → doğrudan Writer'a.");
         return { nextAgent: "writer" };
     }
 
@@ -88,11 +93,12 @@ export async function orchestratorNode(state, config) {
 
     const prompt = `Sie sind ein deterministischer State-Machine-Router für ein KI-Agenten-Team.
     Sie müssen Aufgaben AUSSCHLIESSLICH in der folgenden REIHENFOLGE ausführen.
-    
+
     Aktueller Status (STATE):
     - Aufgabe (Task): "${state.task}"
     - Scraping-Daten vorhanden: ${state.scrapedData ? "JA" : "NEIN"}
     - Analysebericht vorhanden: ${state.analysisReport ? "JA" : "NEIN"}
+    - Vizyoner Alternatif (Innovator) vorhanden: ${state.innovatorInsight ? "JA" : "NEIN"}
     - Autorentext (Final Content) vorhanden: ${state.finalContent ? "JA" : "NEIN"}
     - Kritiker-Status: ${kritikerStatus}
     - Revisions-Zähler (Versuche): ${state.revisionCount}
@@ -116,7 +122,8 @@ export async function orchestratorNode(state, config) {
     // 📊 ROUTE 2: RECHERCHE & BERICHTE (Research-Track)
     Regel 2: Wenn es KEIN Software-Projekt ist UND Scraping-Daten "NEIN" sind -> wählen Sie "scraper".
     Regel 3: Wenn Scraping-Daten "JA" sind, aber Analysebericht "NEIN" ist -> wählen Sie "analyzer".
-    Regel 4: Wenn Analysebericht "JA" ist und Autorentext "NEIN" ist -> wählen Sie "writer".
+    Regel 3.5: Wenn Analysebericht "JA" ist UND Vizyoner Alternatif "NEIN" ist UND Autorentext "NEIN" ist -> wählen Sie "innovator". (Der Visionary muss IMMER nach dem Analyzer kommen!)
+    Regel 4: Wenn Analysebericht "JA" ist UND Vizyoner Alternatif "JA" ist UND Autorentext "NEIN" ist -> wählen Sie "writer".
     
     // 🛑 GEMEINSAME REGELN (Eskalation, Speichern, Richter)
     Regel 5: Wenn Autorentext "JA" ist, Revisions-Zähler >= 3 und Datei gespeichert "NEIN" -> wählen Sie "fileSaver".

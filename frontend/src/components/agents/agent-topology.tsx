@@ -31,8 +31,8 @@ const STATUS_LABEL: Record<AgentStatus, string> = {
 };
 
 const AGENT_ORDER: AgentId[] = [
-    "ceo", "cto", "scraper", "analyst", "writer", "qa",
-    "hitl", "publisher", "radar", "cmo", "cfo"
+    "ceo", "cto", "scraper", "analyst", "innovator", "writer",
+    "qa", "hitl", "publisher", "radar", "cmo", "cfo"
 ];
 
 const AGENT_ROLE_DESC: Record<AgentId, string> = {
@@ -40,6 +40,7 @@ const AGENT_ROLE_DESC: Record<AgentId, string> = {
     cto:       "Architecture & Blueprints",
     scraper:   "Web Research & Data Acquisition",
     analyst:   "Data Processing & Analysis",
+    innovator: "Lateral Thinking & Devil's Advocate",
     writer:    "Content Generation",
     qa:        "Quality Review & Critique",
     hitl:      "Human-in-the-Loop Gate",
@@ -65,7 +66,7 @@ export const AgentTopology = () => {
                     <span className="font-mono text-[10px] font-bold text-white/60 uppercase tracking-widest">
                         Agent Topology
                     </span>
-                    <span className="font-mono text-[8px] text-white/25">11 agents</span>
+                    <span className="font-mono text-[8px] text-white/25">12 agents</span>
                 </div>
                 <div className="flex items-center gap-2">
                     {activeCount > 0 && (

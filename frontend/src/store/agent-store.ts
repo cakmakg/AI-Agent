@@ -8,6 +8,7 @@ export type AgentId =
     | "cto"
     | "scraper"
     | "analyst"
+    | "innovator"
     | "writer"
     | "qa"
     | "hitl"
@@ -196,6 +197,7 @@ const DEFAULT_AGENTS: Record<AgentId, AgentState> = {
     cto: { id: "cto", label: "Baş Mimar", shortLabel: "CTO", icon: "👨‍💻", color: "#39ff14", status: "IDLE" },
     scraper: { id: "scraper", label: "Araştırmacı", shortLabel: "SCR", icon: "🕵️", color: "#ffb000", status: "IDLE" },
     analyst: { id: "analyst", label: "Analist", shortLabel: "ANL", icon: "🧠", color: "#00f0ff", status: "IDLE" },
+    innovator: { id: "innovator", label: "Vizyoner", shortLabel: "VZN", icon: "💡", color: "#bf5fff", status: "IDLE" },
     writer: { id: "writer", label: "İçerik Yön.", shortLabel: "WRT", icon: "✍️", color: "#39ff14", status: "IDLE" },
     qa: { id: "qa", label: "Eleştirmen", shortLabel: "QA", icon: "🧐", color: "#ffb000", status: "IDLE" },
     hitl: { id: "hitl", label: "İnsan Yargıç", shortLabel: "HITL", icon: "👨‍⚖️", color: "#ff2d55", status: "IDLE" },
@@ -348,6 +350,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
                     ceo: "Orchestrator routing...",
                     scraper: "Connecting to Global Network... Fetching data...",
                     analyst: "Processing data blocks...",
+                    innovator: "Breaking conventional thinking... generating contrarian 10x insight...",
                     writer: "Composing B2B content...",
                     qa: "Scanning output for errors...",
                     cto: "Generating architecture blueprint...",
@@ -718,6 +721,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
                 ceo: "Orchestrator routing R&D mission...",
                 scraper: "Tapping into Anthropic & OpenAI news feeds...",
                 analyst: "Processing AI landscape data...",
+                innovator: "Breaking conventional thinking... generating contrarian 10x insight...",
                 writer: "Composing innovation summary...",
                 qa: "Quality check on R&D output...",
                 cto: "Generating integration blueprint...",

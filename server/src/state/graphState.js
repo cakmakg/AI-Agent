@@ -7,6 +7,7 @@ export const StateAnnotation = Annotation.Root({
     // Veriler (null yerine boş string ile başlatıyoruz)
     scrapedData: Annotation({ reducer: (x, y) => y !== "" ? y : x, default: () => "" }),
     analysisReport: Annotation({ reducer: (x, y) => y !== "" ? y : x, default: () => "" }),
+    innovatorInsight: Annotation({ reducer: (x, y) => y !== "" ? y : x, default: () => "" }),
     finalContent: Annotation({ reducer: (x, y) => y !== "" ? y : x, default: () => "" }),
     
     // Döngü ve Güvenlik

@@ -5,6 +5,7 @@ import { StateAnnotation } from "../state/graphState.js";
 import { orchestratorNode } from "../agents/orchestrator.js";
 import { scraperNode } from "../agents/scraperAgent.js";
 import { analyzerNode } from "../agents/analyzerAgent.js";
+import { innovatorNode } from "../agents/innovatorAgent.js";
 import { writerNode } from "../agents/writerAgent.js";
 import { criticNode } from "../agents/criticAgent.js";
 import { fileNode } from "../agents/fileAgent.js";
@@ -22,6 +23,7 @@ const workflow = new StateGraph(StateAnnotation)
     .addNode("orchestrator", orchestratorNode)
     .addNode("scraper", scraperNode)
     .addNode("analyzer", analyzerNode)
+    .addNode("innovator", innovatorNode)
     .addNode("writer", writerNode)
     .addNode("critic", criticNode)
     .addNode("fileSaver", fileNode)
@@ -31,6 +33,7 @@ const workflow = new StateGraph(StateAnnotation)
     .addEdge(START, "orchestrator")
     .addEdge("scraper", "orchestrator")
     .addEdge("analyzer", "orchestrator")
+    .addEdge("innovator", "orchestrator")
     .addEdge("writer", "orchestrator")
     .addEdge("critic", "orchestrator")
     .addEdge("fileSaver", "orchestrator")

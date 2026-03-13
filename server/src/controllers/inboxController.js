@@ -2,6 +2,7 @@ import { v4 as uuidv4 } from "uuid";
 import { processIncomingMessage } from "../agents/customerBotAgent.js";
 import { runHotLeadWorkflow } from "../workflows/runner.js";
 import { SupportTicket } from "../models/SupportTicket.js";
+import { appendHotLead } from "../services/googleSheetsService.js";
 
 // ── n8n kategori → iç aksiyon mapping ──
 const N8N_CATEGORY_MAP = {
@@ -45,6 +46,13 @@ export const handleInbox = async (req, res) => {
             runHotLeadWorkflow(threadId, messageText, req.tenant?.config).catch((err) =>
                 console.error("❌ HOT_LEAD workflow başlatma hatası:", err.message)
             );
+            appendHotLead({
+                source: "operator",
+                from: "UI Operator",
+                subject: messageText.slice(0, 120),
+                summary: "",
+                threadId,
+            }).catch(() => {});
             return res.json({ success: true, status: "PROCESSING", threadId });
         }
 
@@ -104,6 +112,13 @@ export const handleInbox = async (req, res) => {
                 runHotLeadWorkflow(threadId, task, req.tenant?.config).catch((err) =>
                     console.error("❌ n8n HOT_LEAD workflow hatası:", err.message)
                 );
+                appendHotLead({
+                    source: platform || "n8n",
+                    from: author_email || author || "unknown",
+                    subject: subject || messageText.slice(0, 120),
+                    summary: ai_summary || "",
+                    threadId,
+                }).catch(() => {});
                 console.log(`   🔥 HOT_LEAD workflow → threadId: ${threadId}`);
                 return res.json({ success: true, status: "PROCESSING", threadId });
             }
@@ -147,6 +162,13 @@ export const handleInbox = async (req, res) => {
             runHotLeadWorkflow(threadId, leadAnalysis.orchestratorTask, req.tenant?.config).catch((err) =>
                 console.error("❌ HOT_LEAD workflow başlatma hatası:", err.message)
             );
+            appendHotLead({
+                source: platform || "webhook",
+                from: author_email || author || "unknown",
+                subject: subject || messageText.slice(0, 120),
+                summary: leadAnalysis.analysis || "",
+                threadId,
+            }).catch(() => {});
             return res.json({ success: true, status: "PROCESSING", threadId });
         }
 

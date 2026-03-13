@@ -133,6 +133,15 @@ export async function writerNode(state, config) {
     else {
         console.log("✍️ İçerik Üretici (Ajan 3) devrede. Rapor ilk kez B2B IT formatında Almanca metne dökülüyor...");
 
+        const innovatorSection = state.innovatorInsight
+            ? `\n\n        Außerdem hat unser "Visionary Agent" (Der Querdenker) folgende provokante Alternative entwickelt.
+        Du MUSST diese als eigenen Abschnitt "## 💡 Vizyoner Alternatif — Der Querdenker" in den Bericht integrieren.
+        Stelle sie als mutige Gegenperspektive dar, die der Entscheider kennen sollte, bevor er sich festlegt.
+
+        Vizyoner Alternatif:
+        ${state.innovatorInsight}`
+            : "";
+
         prompt = `${persona}
         Unten finden Sie einen strategischen Bericht, der von unserem Datenanalysten erstellt wurde.
         Ihre Aufgabe ist es, diesen Bericht umfassend und hochwertig zu formatieren.
@@ -145,12 +154,13 @@ export async function writerNode(state, config) {
            - **SOLL-Konzept** (Zielzustand & technologischer Lösungsansatz)
            - **Architektur & Roadmap** (Schritte zur technischen Umsetzung)
            - **Business Value / ROI** (Warum sich diese Investition lohnt)
+           - **💡 Vizyoner Alternatif** (Falls vorhanden — der aykırı 4. Yol des Querdenkers)
         3. Nutzen Sie Markdown-Formatierungen (Überschriften # und ##, Aufzählungen, fette Texte), um das Lesen zu erleichtern.
         4. Fügen Sie eine formelle Begrüßung (z.B. "Sehr geehrte Damen und Herren,") und eine professionelle Verabschiedung (z.B. "Mit freundlichen Grüßen,") hinzu.
         5. Geben Sie NUR den endgültigen Bericht aus. Keine einleitenden Sätze oder Erklärungen.
 
         Hier ist der Analysebericht:
-        ${state.analysisReport}`;
+        ${state.analysisReport}${innovatorSection}`;
     }
 
     // AWS Bedrock'a metni yazdırıyoruz

@@ -27,6 +27,7 @@ export const AGENT_UI_MAP = {
     orchestrator: "ceo",
     scraper: "scraper",
     analyzer: "analyst",
+    innovator: "innovator",
     writer: "writer",
     critic: "qa",
     fileSaver: null, // UI'da gösterilmez
