@@ -11,6 +11,7 @@ const AGENT_COLORS: Record<AgentId, string> = {
     cto:       "text-neon-green",
     scraper:   "text-cyber-amber",
     analyst:   "text-neon-blue",
+    innovator: "text-[#a78bfa]",
     writer:    "text-neon-green",
     qa:        "text-cyber-amber",
     hitl:      "text-alert-red",

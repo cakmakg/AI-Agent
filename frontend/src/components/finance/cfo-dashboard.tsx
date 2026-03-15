@@ -125,8 +125,8 @@ export const CfoDashboard = () => {
                             label="Net P&L"
                             value={formatUSD(data.netPnl)}
                             icon={<DollarSign size={13} />}
-                            color={data.netPnl >= 0 ? "text-neon-green" : "text-alert-red"}
-                            bg={data.netPnl >= 0 ? "bg-neon-green/6 border-neon-green/15" : "bg-alert-red/6 border-alert-red/15"}
+                            color={(data.netPnl ?? 0) >= 0 ? "text-neon-green" : "text-alert-red"}
+                            bg={(data.netPnl ?? 0) >= 0 ? "bg-neon-green/6 border-neon-green/15" : "bg-alert-red/6 border-alert-red/15"}
                         />
                     </div>
 

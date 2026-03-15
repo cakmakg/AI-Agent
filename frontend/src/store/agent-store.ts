@@ -1,5 +1,8 @@
 import { create } from "zustand";
 
+// SSE için direkt backend URL — Next.js dev proxy SSE stream'i bufferlar, kopyalar kesilir.
+const BACKEND_SSE = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:3000";
+
 // ── Agent Status Types ──
 export type AgentStatus = "IDLE" | "THINKING" | "ACTIVE" | "SUCCESS" | "ERROR";
 
@@ -94,7 +97,7 @@ export interface CampaignDraftSummary {
     createdAt: string;
 }
 
-export type ActiveView = "chat" | "inbox" | "cfo" | "knowledge" | "topology" | "settings" | "skills";
+export type ActiveView = "control" | "cfo" | "knowledge" | "settings" | "skills";
 
 export type DrawerItem =
     | { type: "report"; threadId: string }
@@ -144,6 +147,7 @@ interface AgentStore {
     // ── UI Navigation ──
     activeView: ActiveView;
     drawerItem: DrawerItem | null;
+    editedContent: string | null;
 
     // ── Chat Messages (agent aktivasyonları + kullanıcı mesajları) ──
     chatMessages: ChatMessage[];
@@ -178,6 +182,7 @@ interface AgentStore {
     // ── UI Navigation ──
     setActiveView: (view: ActiveView) => void;
     setDrawerItem: (item: DrawerItem | null) => void;
+    setEditedContent: (c: string | null) => void;
     addChatMessage: (msg: Omit<ChatMessage, "id">) => void;
     clearChatMessages: () => void;
     setApiKey: (key: string | null) => void;
@@ -223,8 +228,9 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     archiveOpen: false,
     supportTickets: [],
     campaignDrafts: [],
-    activeView: "chat",
+    activeView: "control",
     drawerItem: null,
+    editedContent: null,
     chatMessages: [],
     apiKey: typeof window !== "undefined" ? localStorage.getItem("ai_orchestra_api_key") : null,
 
@@ -260,6 +266,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
 
     setActiveView: (view) => set({ activeView: view }),
     setDrawerItem: (item) => set({ drawerItem: item }),
+    setEditedContent: (c) => set({ editedContent: c }),
     addChatMessage: (msg) =>
         set((state) => ({
             chatMessages: [
@@ -302,7 +309,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
             addLog({ timestamp: getTimestamp(), agent: "CEO", message: "Orchestrator analyzing request...", level: "INFO" });
 
             const headers: Record<string, string> = { "Content-Type": "application/json" };
-            if (get().apiKey) headers["x-api-key"] = get().apiKey;
+            if (get().apiKey) headers["x-api-key"] = get().apiKey!;
 
             const res = await fetch("/api/inbox", {
                 method: "POST",
@@ -344,7 +351,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
                 addLog({ timestamp: getTimestamp(), agent: "CEO", message: "Workflow started. Tracking agents via SSE...", level: "INFO" });
 
                 let previousAgent: AgentId | null = "ceo";
-                const eventSource = new EventSource(`/api/events/${data.threadId}`);
+                const eventSource = new EventSource(`${BACKEND_SSE}/api/events/${data.threadId}`);
 
                 const agentLabels: Record<string, string> = {
                     ceo: "Orchestrator routing...",
@@ -493,7 +500,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
 
         try {
             const headers: Record<string, string> = { "Content-Type": "application/json" };
-            if (get().apiKey) headers["x-api-key"] = get().apiKey;
+            if (get().apiKey) headers["x-api-key"] = get().apiKey!;
 
             const res = await fetch("/api/approve", {
                 method: "POST",
@@ -552,7 +559,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
 
         try {
             const headers: Record<string, string> = { "Content-Type": "application/json" };
-            if (get().apiKey) headers["x-api-key"] = get().apiKey;
+            if (get().apiKey) headers["x-api-key"] = get().apiKey!;
 
             const res = await fetch("/api/approve", {
                 method: "POST",
@@ -581,7 +588,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
                 addAlert({ message: "REVISION CYCLE ACTIVE — AGENTS REWRITING...", type: "warning" });
 
                 // Revision workflow arka planda çalışıyor — SSE'yi yeniden aç
-                const revEventSource = new EventSource(`/api/events/${threadId}`);
+                const revEventSource = new EventSource(`${BACKEND_SSE}/api/events/${threadId}`);
                 let revPreviousAgent: AgentId | null = "ceo";
 
                 revEventSource.onmessage = (e: MessageEvent) => {
@@ -699,7 +706,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
 
         try {
             const headers: Record<string, string> = { "Content-Type": "application/json" };
-            if (get().apiKey) headers["x-api-key"] = get().apiKey;
+            if (get().apiKey) headers["x-api-key"] = get().apiKey!;
 
             const res = await fetch("/api/rnd", {
                 method: "POST",
@@ -730,7 +737,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
                 radar: "INNOVATION_RADAR active — live feed connected.",
             };
 
-            const eventSource = new EventSource(`/api/events/${data.threadId}`);
+            const eventSource = new EventSource(`${BACKEND_SSE}/api/events/${data.threadId}`);
 
             eventSource.onmessage = (e: MessageEvent) => {
                 const event = JSON.parse(e.data) as {
@@ -811,7 +818,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     fetchMissions: async () => {
         try {
             const headers: Record<string, string> = {};
-            if (get().apiKey) headers["x-api-key"] = get().apiKey;
+            if (get().apiKey) headers["x-api-key"] = get().apiKey!;
 
             const res = await fetch("/api/missions?limit=50", { headers });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -830,7 +837,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
 
             // Then fetch full content
             const headers: Record<string, string> = {};
-            if (get().apiKey) headers["x-api-key"] = get().apiKey;
+            if (get().apiKey) headers["x-api-key"] = get().apiKey!;
 
             const res = await fetch(`/api/missions/${threadId}`, { headers });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -852,7 +859,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     fetchSupportTickets: async () => {
         try {
             const headers: Record<string, string> = {};
-            if (get().apiKey) headers["x-api-key"] = get().apiKey;
+            if (get().apiKey) headers["x-api-key"] = get().apiKey!;
 
             const res = await fetch("/api/support/pending", { headers });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -869,7 +876,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
             addLog({ timestamp: getTimestamp(), agent: "HITL", message: `Support ticket ${isApproved ? "approved" : "rejected"}: ${ticketId}`, level: "INFO" });
 
             const headers: Record<string, string> = { "Content-Type": "application/json" };
-            if (get().apiKey) headers["x-api-key"] = get().apiKey;
+            if (get().apiKey) headers["x-api-key"] = get().apiKey!;
 
             const res = await fetch(`/api/support/${ticketId}/approve`, {
                 method: "POST",
@@ -889,7 +896,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     fetchCampaignDrafts: async () => {
         try {
             const headers: Record<string, string> = {};
-            if (get().apiKey) headers["x-api-key"] = get().apiKey;
+            if (get().apiKey) headers["x-api-key"] = get().apiKey!;
 
             const res = await fetch("/api/campaign/pending", { headers });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -906,7 +913,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
             addLog({ timestamp: getTimestamp(), agent: "CMO", message: `Campaign ${isApproved ? "approved → publishing" : "rejected"}: ${campaignId}`, level: "INFO" });
 
             const headers: Record<string, string> = { "Content-Type": "application/json" };
-            if (get().apiKey) headers["x-api-key"] = get().apiKey;
+            if (get().apiKey) headers["x-api-key"] = get().apiKey!;
 
             const res = await fetch(`/api/campaign/${campaignId}/approve`, {
                 method: "POST",

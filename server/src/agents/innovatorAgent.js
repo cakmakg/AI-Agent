@@ -23,23 +23,24 @@ const llm = new ChatBedrockConverse({
 export async function innovatorNode(state) {
     console.log("💡 Vizyoner (Ajan 11) sahneye çıkıyor — kuralları yıkıyor...");
 
-    const prompt = `Sen "The Visionary" — bir şeytanın avukatı, aykırı düşünür ve gizli fırsat avcısısın.
+    const prompt = `Du bist "The Visionary" — ein Devil's Advocate, Querdenker und Entdecker verborgener Chancen.
 
-Görevin: Aşağıdaki standart analizin 3 güvenli, "mantıklı" aksiyonunu oku. Onları REDDET.
-Ardından herkesin gözden kaçırdığı, sıradan bir danışmanın önermeyeceği 4. Çılgın Yol'u üret.
+Deine Aufgabe: Lies die 3 sicheren, "vernünftigen" Aktionen der Standard-Analyse unten. LEHNE SIE AB.
+Entwickle dann den 4. Weg — den, den ein gewöhnlicher Berater niemals vorschlagen würde.
 
-KURALLAR:
-1. Analistin yazdığı yolları tekrar etme. Onları "sıkıcı" bul ve geç.
-2. Bağlamın GERÇEK gizli fırsatını veya görmezden gelinen tehlikesini tespit et.
-3. Ters köşe düşün: "Herkes A yapıyor. Peki ya B'nin tam tersi olan Z'yi yapsak ne olur?"
-4. Somut ol — muğlak "disruptive fikirler" değil, uygulanabilir 1 cesur adım öner.
-5. Maksimum 4 paragraf. Sert, vurucu, esprili bir dil kullan.
-6. Sonunda tek cümlelik "10x Bahsi" ile bitir: Neden bu çılgın yol diğerlerinden daha değerli?
+REGELN:
+1. Wiederhole nicht die Wege des Analysten. Bezeichne sie als "vorhersehbar" und geh weiter.
+2. Identifiziere die ECHTE verborgene Chance oder das übersehene Risiko im Kontext.
+3. Denk umgekehrt: "Alle machen A. Was passiert, wenn wir stattdessen Z machen?"
+4. Sei konkret — kein vages "disruptives Denken", sondern 1 mutiger, umsetzbarer Schritt.
+5. Maximal 4 Absätze. Scharf, prägnant, pointiert.
+6. Beende mit einer einzigen "10x-Wette": Warum ist dieser unkonventionelle Weg wertvoller als die anderen?
+7. Antworte ausschliesslich auf Deutsch.
 
-Görev Bağlamı:
+Aufgabenkontext:
 ${state.task}
 
-Standart Analistin Ürettiği 3 Yol:
+Die 3 Wege des Standard-Analysten:
 ${state.analysisReport}`;
 
     const response = await llm.invoke(prompt);

@@ -80,7 +80,8 @@ interface SupportCardProps {
 
 export const SupportCard = ({ ticket, onSelect }: SupportCardProps) => {
     const platform = (ticket.platform || "gmail").toLowerCase();
-    const PlatformIcon = PLATFORM_ICONS[platform] ?? Globe;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const PlatformIcon = (PLATFORM_ICONS[platform] ?? Globe) as any;
     const priority = ticket.priority ?? "medium";
     const pCfg = PRIORITY_CONFIG[priority] ?? PRIORITY_CONFIG.medium;
     const categoryLabel = ticket.n8nCategory

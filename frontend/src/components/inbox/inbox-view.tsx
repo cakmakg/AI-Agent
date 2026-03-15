@@ -164,7 +164,7 @@ export const InboxView = () => {
                             </p>
                         </div>
                         <button
-                            onClick={() => setActiveView("chat")}
+                            onClick={() => setActiveView("control")}
                             className="font-mono text-[10px] text-neon-blue/60 hover:text-neon-blue transition-colors mt-1 font-semibold"
                         >
                             ← Command Center&apos;a Dön

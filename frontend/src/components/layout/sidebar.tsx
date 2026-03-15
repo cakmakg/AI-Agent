@@ -3,11 +3,9 @@
 import React from "react";
 import { motion } from "framer-motion";
 import {
-    MessageSquare,
-    Inbox,
+    LayoutDashboard,
     BarChart3,
     BookOpen,
-    Network,
     Settings,
     Blocks,
 } from "lucide-react";
@@ -16,11 +14,9 @@ import type { ActiveView, AgentId } from "@/store/agent-store";
 import { CronTimer } from "@/components/hud/cron-timer";
 
 const NAV_ITEMS: { view: ActiveView; label: string; icon: React.ReactNode }[] = [
-    { view: "chat", label: "Command Center", icon: <MessageSquare size={15} /> },
-    { view: "inbox", label: "Inbox", icon: <Inbox size={15} /> },
+    { view: "control", label: "Mission Control", icon: <LayoutDashboard size={15} /> },
     { view: "cfo", label: "CFO Dashboard", icon: <BarChart3 size={15} /> },
     { view: "knowledge", label: "Knowledge Base", icon: <BookOpen size={15} /> },
-    { view: "topology", label: "Agent Topology", icon: <Network size={15} /> },
     { view: "skills", label: "Skill Store", icon: <Blocks size={15} /> },
     { view: "settings", label: "Client Settings", icon: <Settings size={15} /> },
 ];
@@ -63,7 +59,7 @@ export const Sidebar = () => {
             <nav className="flex flex-col gap-1 px-2 py-3 border-b border-white/10">
                 {NAV_ITEMS.map(({ view, label, icon }) => {
                     const isActive = activeView === view;
-                    const badge = view === "inbox" && pendingInboxCount > 0 ? pendingInboxCount : null;
+                    const badge = view === "control" && pendingInboxCount > 0 ? pendingInboxCount : null;
 
                     return (
                         <motion.button

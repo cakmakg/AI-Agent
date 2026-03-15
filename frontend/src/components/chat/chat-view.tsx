@@ -74,7 +74,7 @@ export const ChatView = () => {
                         className="flex justify-center mb-4"
                     >
                         <button
-                            onClick={() => setActiveView("inbox")}
+                            onClick={() => setActiveView("control")}
                             className="flex items-center gap-2.5 px-5 py-2.5 rounded-full bg-cyber-amber/15 border border-cyber-amber/40
                                        text-cyber-amber font-mono text-[10px] font-bold tracking-wide hover:bg-cyber-amber/25 transition-colors shadow-[0_0_20px_rgba(251,191,36,0.15)]"
                         >

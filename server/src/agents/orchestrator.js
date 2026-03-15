@@ -98,7 +98,7 @@ export async function orchestratorNode(state, config) {
     - Aufgabe (Task): "${state.task}"
     - Scraping-Daten vorhanden: ${state.scrapedData ? "JA" : "NEIN"}
     - Analysebericht vorhanden: ${state.analysisReport ? "JA" : "NEIN"}
-    - Vizyoner Alternatif (Innovator) vorhanden: ${state.innovatorInsight ? "JA" : "NEIN"}
+    - Visionäre Alternative (Innovator) vorhanden: ${state.innovatorInsight ? "JA" : "NEIN"}
     - Autorentext (Final Content) vorhanden: ${state.finalContent ? "JA" : "NEIN"}
     - Kritiker-Status: ${kritikerStatus}
     - Revisions-Zähler (Versuche): ${state.revisionCount}
@@ -108,13 +108,13 @@ export async function orchestratorNode(state, config) {
 
     STRIKTE ROUTING-REGELN (Gehen Sie diese von oben nach unten durch!):
 
-    // 🔬 ROUTE 0: AR-GE / İNOVASYON DEPARTMANI (R&D Track)
+    // 🔬 ROUTE 0: F&E / INNOVATION (R&D-Track)
     Regel 0.1: Wenn die Aufgabe das Wort "INNOVATION_RADAR" enthält UND Scraping-Daten "NEIN" sind -> wähle "scraper". (Zuerst News suchen!)
-    Regel 0.2: Wenn die Aufgabe das Wort "INNOVATION_RADAR" enthält UND Scraping-Daten "JA" sind UND Autorentext "NEIN" ist -> wähle "architect". (Dann Blueprint aus den News machen!)
+    Regel 0.2: Wenn die Aufgabe das Wort "INNOVATION_RADAR" enthält UND Scraping-Daten "JA" sind UND Autorentext "NEIN" ist -> wähle "architect". (Dann Blueprint aus den News erstellen!)
 
-    // 📣 ROUTE 0.3: SOCIAL MEDIA / GROWTH DEPARTMANI (Twitter & LinkedIn Track)
-    Regel 0.3: Wenn die Aufgabe das Wort "TWITTER" oder "LINKEDIN" enthält UND Scraping-Daten "NEIN" sind -> wähle "scraper". (Erst aktuelle Daten für Social Media sammeln!)
-    Regel 0.4: Wenn die Aufgabe das Wort "TWITTER" oder "LINKEDIN" enthält UND Scraping-Daten "JA" sind UND Autorentext "NEIN" ist -> wähle "writer". (Direkt zum Writer! Kein Analyzer nötig für Social Media Content.)
+    // 📣 ROUTE 0.3: SOCIAL MEDIA / WACHSTUM (Twitter & LinkedIn Track)
+    Regel 0.3: Wenn die Aufgabe das Wort "TWITTER" oder "LINKEDIN" enthält UND Scraping-Daten "NEIN" sind -> wähle "scraper". (Erst aktuelle Daten für Social-Media-Inhalte sammeln!)
+    Regel 0.4: Wenn die Aufgabe das Wort "TWITTER" oder "LINKEDIN" enthält UND Scraping-Daten "JA" sind UND Autorentext "NEIN" ist -> wähle "writer". (Direkt zum Writer! Kein Analyzer für Social-Media-Content nötig.)
     
     // 🎯 ROUTE 1: SOFTWARE & CODING (CTO-Track)
     Regel 1: WENN in der Aufgabe Wörter wie "Code", "Dashboard", "Software", "App", "Blueprint" oder "Next.js" vorkommen UND der Autorentext (Final Content) "NEIN" ist UND es KEIN "INNOVATION_RADAR" ist -> WÄHLEN SIE ZWINGEND "architect".
@@ -122,8 +122,8 @@ export async function orchestratorNode(state, config) {
     // 📊 ROUTE 2: RECHERCHE & BERICHTE (Research-Track)
     Regel 2: Wenn es KEIN Software-Projekt ist UND Scraping-Daten "NEIN" sind -> wählen Sie "scraper".
     Regel 3: Wenn Scraping-Daten "JA" sind, aber Analysebericht "NEIN" ist -> wählen Sie "analyzer".
-    Regel 3.5: Wenn Analysebericht "JA" ist UND Vizyoner Alternatif "NEIN" ist UND Autorentext "NEIN" ist -> wählen Sie "innovator". (Der Visionary muss IMMER nach dem Analyzer kommen!)
-    Regel 4: Wenn Analysebericht "JA" ist UND Vizyoner Alternatif "JA" ist UND Autorentext "NEIN" ist -> wählen Sie "writer".
+    Regel 3.5: Wenn Analysebericht "JA" ist UND Visionäre Alternative "NEIN" ist UND Autorentext "NEIN" ist -> wählen Sie "innovator". (Der Visionary muss IMMER nach dem Analyzer kommen!)
+    Regel 4: Wenn Analysebericht "JA" ist UND Visionäre Alternative "JA" ist UND Autorentext "NEIN" ist -> wählen Sie "writer".
     
     // 🛑 GEMEINSAME REGELN (Eskalation, Speichern, Richter)
     Regel 5: Wenn Autorentext "JA" ist, Revisions-Zähler >= 3 und Datei gespeichert "NEIN" -> wählen Sie "fileSaver".

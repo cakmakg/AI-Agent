@@ -64,7 +64,7 @@ const markdownComponents = {
         </blockquote>
     ),
     // ── Kod blokları: SyntaxHighlighter (dil tanımlıysa) / inline code ──
-    code: ({ className, children, ...rest }: { className?: string; children?: React.ReactNode;[key: string]: unknown }) => {
+    code: ({ className, children }: { className?: string; children?: React.ReactNode }) => {
         const match = /language-(\w+)/.exec(className || "");
         const codeString = String(children ?? "").replace(/\n$/, "");
 
@@ -84,7 +84,7 @@ const markdownComponents = {
                         fontFamily: "var(--font-geist-mono), monospace",
                     }}
                     codeTagProps={{ style: { fontFamily: "inherit" } }}
-                    {...(rest as object)}
+
                 >
                     {codeString}
                 </SyntaxHighlighter>

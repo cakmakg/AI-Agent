@@ -38,7 +38,7 @@ export const ReportViewer = ({ threadId }: Props) => {
         }
         setFetching(true);
         setFetchedContent(null);
-        const headers = {};
+        const headers: Record<string, string> = {};
         if (apiKey) headers["x-api-key"] = apiKey;
         fetch("/api/artifact/" + threadId, { headers })
             .then((r) => r.json())

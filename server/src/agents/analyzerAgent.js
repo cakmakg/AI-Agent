@@ -15,10 +15,11 @@ export async function analyzerNode(state) {
     console.log("🧠 Analiz Motoru (Ajan 2) devrede. Gelen veri işleniyor...");
 
     // Analiz için Prompt (Sistem Yönergesi)
-    const prompt = `Sen kıdemli bir Strateji Analistisin. 
-    Aşağıda internetten toplanmış ham bir veri var. Bu veriyi oku ve yönetici için 3 maddelik kısa, stratejik bir aksiyon planı çıkar.
-    
-    Ham Veri: 
+    const prompt = `Du bist ein erfahrener Senior-Strategie-Analyst.
+    Unten stehen Rohdaten, die aus dem Internet gesammelt wurden. Lies sie und erstelle daraus einen kurzen, strategischen 3-Punkte-Aktionsplan für das Management.
+    Antworte ausschliesslich auf Deutsch.
+
+    Rohdaten:
     ${state.scrapedData}
     `;
 
